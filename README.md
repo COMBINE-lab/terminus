@@ -17,3 +17,20 @@ the resolution at which the analysis will be performed, and subjecting the resul
 or insufficient biological resolution, terminus allows the determination of transcriptional groups that can 
 be confidently ascertained in a given sample, and represents, in this sense, a data-driven approach to 
 transcriptome analysis.
+
+
+How to build terminus
+---------------------
+
+Terminus uses the [cargo])(https://github.com/rust-lang/cargo) build system and package manager.  To build terminus from source, you will need to have rust (ideally v1.40 or greater) installed.  Then, you can build terminus by executing:
+
+```
+$ cargo build --release
+```
+
+from the top-level directory of this repository.  This will produce an executable in `target/release/terminus`.
+
+How to use terminus
+-------------------
+
+Terminus has two sub-commands, `group` and `collapse`.
