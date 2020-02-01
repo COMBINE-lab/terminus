@@ -63,7 +63,7 @@ impl FileList {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Default)]
 pub struct TranscriptInfo {
     pub eqlist: Vec<usize>,
     pub weights: Vec<i32>

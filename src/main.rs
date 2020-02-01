@@ -108,7 +108,7 @@ fn do_group(sub_m: & ArgMatches) -> Result<bool, io::Error> {
     let inf_perc = 0.25f64;
     let p = util::get_infrv_percentile(&gibbs_array, inf_perc);
     println!("the {}% of infRV was : {}", inf_perc*100., p);
-    let mut thr = util::get_threhold(&gibbs_array, p, &file_list_out);
+    let thr = util::get_threhold(&gibbs_array, p, &file_list_out);
     // thr = thr * 0.75;
     // thr = 0.645;
     println!("threshold: {}",thr);

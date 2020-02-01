@@ -9,7 +9,6 @@ use std::fs::*;
 use petgraph as pg;
 use ndarray::prelude::*;
 use refinery::Partition;
-use ndarray::stack;
 use itertools::Itertools;
 //use std::num::pow::pow;
 //use rgsl::statistics::correlation;
@@ -17,7 +16,7 @@ use itertools::Itertools;
 use std::f64;
 //use std::collections::BinaryHeap;
 use binary_heap_plus::*;
-use crate::salmon_types::{MetaInfo, EqClassExperiment, EdgeInfo, TxpRecord, FileList, TranscriptInfo};
+use crate::salmon_types::{MetaInfo, EqClassExperiment, EdgeInfo, TxpRecord, FileList};
 use crate::petgraph::visit::EdgeRef;
 use ordered_float::*;
 use rand::thread_rng;
@@ -27,7 +26,6 @@ use petgraph::unionfind::UnionFind;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::cmp::Ordering;
-use ndarray_stats::CorrelationExt;
 
 // General functions to r/w files
 // files to be handled
@@ -359,9 +357,11 @@ pub fn group_reader(
 }
 
 // normal variance
+/*
 fn var_1d(a: ArrayView1<'_, f64>) -> f64 {
     a.var_axis(Axis(0), 0.).into_scalar()
 }
+*/
 
 // find min and max divide by mean
 fn infrv_1d(a: ArrayView1<'_, f64>) -> f64 {
@@ -416,13 +416,14 @@ pub fn endpoints_overdispersed(
     x: usize,
     y: usize
 ) -> bool {
-    return infrv_array[x] >= m && infrv_array[y] >= m
+    infrv_array[x] >= m && infrv_array[y] >= m
 }
 
+/*
 fn variance(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
     a.map_axis(axis, var_1d)
 }
-
+*/
 
 pub fn get_threhold(
     gibbs_mat: &Array2<f64>,
@@ -442,7 +443,7 @@ pub fn get_threhold(
     
     let dat = gibbs_nz.iter().map(|i| format!("{}\t{}",gibbs_mat_mean[*i as usize], infrv_array[*i as usize])).join("\n");
     let infrv_log = file_list.prefix.as_path().join("infrv.log");
-    std::fs::write(infrv_log, dat);
+    std::fs::write(infrv_log, dat).expect("could not write to the infrv.log");
 
     let die_roll_log = file_list.prefix.as_path().join("die_roll.log");
     let mut dfile = File::create(die_roll_log.clone()).expect("could not create die roll.log");
@@ -527,6 +528,7 @@ pub fn get_collapse_score(
    //infsum - (infa + infb) - covmat[[0,1]]
 }
 
+/*
 pub fn get_infrv_fold_change(
     gibbs_mat: &Array2<f64>,
     infrv_array: &Array1<f64>,
@@ -539,8 +541,9 @@ pub fn get_infrv_fold_change(
    let infsum = infrv_1d(sum.view());
    infsum / (infa + infb)
 }
+*/
 
-
+/*
 pub fn get_variance_fold_change(
     gibbs_mat: &Array2<f64>,
     variance_array: &Array1<f64>,
@@ -553,7 +556,7 @@ pub fn get_variance_fold_change(
    let varsum = var_1d(sum.view());
    varsum / (infa + infb + 1.)
 }
-
+*/
 
 #[allow(dead_code)]
 pub fn eq_experiment_to_graph(
@@ -644,9 +647,9 @@ pub fn eq_experiment_to_graph(
             continue;
         }
 
-        let thresh = 0.1 * (1.0 / ns.len() as f32);
-        let retained : std::vec::Vec<usize> = (0..ns.len()).filter_map(
-            |j| if ws[j as usize] >= thresh { Some(j as usize) } else { None} ).collect();
+        //let thresh = 0.1 * (1.0 / ns.len() as f32);
+        //let retained : std::vec::Vec<usize> = (0..ns.len()).filter_map(
+        //    |j| if ws[j as usize] >= thresh { Some(j as usize) } else { None} ).collect();
 
         let _wsrounded : Vec<i32> = ws.iter().map(|&w| (w * 1000f32).round() as i32).collect();
         let mut pair_vec = Vec::with_capacity(ns.len());
@@ -682,10 +685,8 @@ pub fn eq_experiment_to_graph(
             }
             j += 1;
         }
-        if j < pair_vec.len(){
-            if part_cache.insert(vec![pair_vec[j].0 as usize]) {
-                part.refine(&[pair_vec[j].0 as usize]);
-            }
+        if j < pair_vec.len() && part_cache.insert(vec![pair_vec[j].0 as usize]) {
+            part.refine(&[pair_vec[j].0 as usize]);
             //valid_transcripts[pair_vec[j].0 as usize] = true;
             //partition_sets.push(vec![pair_vec[j].0 as usize]);
         }
@@ -723,11 +724,8 @@ pub fn eq_experiment_to_graph(
                     unionfind_struct.union(source as usize, *t as usize);
                     golden_collapses += 1;
                 }
-            }else{
-                if p.len() > 10{
+            } else if p.len() > 10 {
                     println!("{}", p.len());
-                }
-
             }
         }
     }
@@ -1151,7 +1149,7 @@ pub fn work_on_component(
                     let mut u_to_x_info = og.edge_weight_mut(u_to_x_inner).unwrap();
 
                     // v_to_x_eq.sort();
-                    let mut intersecting_eqlist = intersect(&v_to_x_eq, &u_to_x_info.eqlist);
+                    let intersecting_eqlist = intersect(&v_to_x_eq, &u_to_x_info.eqlist);
                     let curr_state = u_to_x_info.state;
 
                     let mut sum = 0 as u32 ;
