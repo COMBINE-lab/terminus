@@ -189,8 +189,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         num_collapses.to_formatted_string(&Locale::en)
     );
     //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
-    let mut gfile =
-        File::create(file_list_out.group_file).expect("could not create groups.txt");
+    let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
     let _write = util::group_writer(&mut gfile, &groups);
 
     Ok(true)
