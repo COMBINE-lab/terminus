@@ -22,20 +22,21 @@ jobs:
         with:
           command: check
 
+
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        build: [beta, stable, windows, macos]
+        build: [beta, stable, macos]
         include:
           - build: macos
             os: macos-latest
             rust: stable
-          - build: windows
-            os: windows-latest
-            rust: stable
+          #- build: windows
+          #  os: windows-latest
+          #  rust: stable
           - build: beta
             os: ubuntu-latest
             rust: beta
@@ -59,6 +60,16 @@ jobs:
           command: test
           args: --no-fail-fast
 
+      - name: GSL for OSX
+        runs-on: mac-os
+        uses: artemnovichkov/action-homebrew@0.1.0
+        with:
+          command: sudo brew install gsl     
+
+      - name: GSL for linux
+        runs-on: ubuntu-latest
+        command: sudo apt-get install libgsl libgsl-dev
+          
   lints:
     name: Lints
     runs-on: ubuntu-latest
