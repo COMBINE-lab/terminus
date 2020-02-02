@@ -60,15 +60,15 @@ jobs:
           command: test
           args: --no-fail-fast
 
-      - name: GSL for OSX
-        runs-on: mac-os
+      - name: GSL for mac
+        if: matrix.os == 'macos-latest'
         uses: artemnovichkov/action-homebrew@0.1.0
         with:
           command: sudo brew install gsl     
 
       - name: GSL for linux
-        runs-on: ubuntu-latest
-        command: sudo apt-get install libgsl libgsl-dev
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install libgsl libgsl-dev
           
   lints:
     name: Lints
