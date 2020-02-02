@@ -558,7 +558,7 @@ pub fn get_variance_fold_change(
 }
 */
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn eq_experiment_to_graph(
     exp: &EqClassExperiment,
     gibbs_mat: &mut Array2<f64>,
@@ -956,6 +956,7 @@ pub fn verify_graph(
 
 
 //util::work_on_component(&eq_class, &gibbs_array, &og, &comp);
+#[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn work_on_component(
     eq_class_count : &[u32],
     gibbs_mat : &mut Array2<f64>,
