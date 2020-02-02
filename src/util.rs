@@ -1,31 +1,31 @@
 use byteorder::{ByteOrder, LittleEndian};
-use std::time::Instant;
-use std::io::prelude::*;
-use std::io::{self, BufReader, BufWriter};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use std::fs::*;
-use petgraph as pg;
-use ndarray::prelude::*;
-use refinery::Partition;
 use itertools::Itertools;
+use ndarray::prelude::*;
+use petgraph as pg;
+use refinery::Partition;
+use std::fs::*;
+use std::io::prelude::*;
+use std::io::{self, BufReader, BufWriter};
+use std::time::Instant;
 //use std::num::pow::pow;
 //use rgsl::statistics::correlation;
 
 use std::f64;
 //use std::collections::BinaryHeap;
-use binary_heap_plus::*;
-use crate::salmon_types::{MetaInfo, EqClassExperiment, EdgeInfo, TxpRecord, FileList};
 use crate::petgraph::visit::EdgeRef;
-use ordered_float::*;
-use rand::thread_rng;
-use rand::distributions::{Distribution,Uniform};
+use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
+use binary_heap_plus::*;
 use num_traits::cast::ToPrimitive;
+use ordered_float::*;
 use petgraph::unionfind::UnionFind;
+use rand::distributions::{Distribution, Uniform};
+use rand::thread_rng;
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
-use std::cmp::Ordering;
 
 // General functions to r/w files
 // files to be handled
@@ -36,37 +36,38 @@ use std::cmp::Ordering;
 // ambig_info.tsv
 
 pub fn group_writer(
-    gfile : &mut File,
-    groups: &HashMap<usize, Vec<usize>>
+    gfile: &mut File,
+    groups: &HashMap<usize, Vec<usize>>,
 ) -> Result<bool, io::Error> {
     //let mut buffer = File::create("groups.txt")?;
     //let mut buffer = File::create("foo.txt").unwrap();
     //let mut file = GzEncoder::new(file_handle, Compression::default());
-    for (group_id, group) in groups{
+    for (group_id, group) in groups {
         let strings: Vec<String> = group.iter().map(|n| n.to_string()).collect();
-        writeln!(gfile, "{},{}",group_id.to_string(), strings.join(","))?;    
+        writeln!(gfile, "{},{}", group_id.to_string(), strings.join(","))?;
     }
     Ok(true)
 }
 
 pub fn write_quants_from_components(
-    components : &[Vec<pg::graph::NodeIndex>],
+    components: &[Vec<pg::graph::NodeIndex>],
     file_list: &FileList,
     gibbs_mat: &Array2<f64>,
     meta_info: &MetaInfo,
-    rec : &[TxpRecord],
+    rec: &[TxpRecord],
 ) -> Result<bool, io::Error> {
     let aux_dir = file_list.eq_file.parent().unwrap();
     create_dir_all(aux_dir)?;
     let bootstraps_dir = file_list.bootstrap_file.parent().unwrap();
     create_dir_all(bootstraps_dir)?;
-    
+
     // write bootstrap file
     let bt_file_handle = File::create(file_list.bootstrap_file.clone())?;
     let mut file = GzEncoder::new(bt_file_handle, Compression::default());
 
     // write quantfile
-    let quant_file = File::create(file_list.quant_file.clone()).expect("Could not write quant file");
+    let quant_file =
+        File::create(file_list.quant_file.clone()).expect("Could not write quant file");
     let mut quant_buf_writer = BufWriter::new(quant_file);
 
     // write meta_info.jeson file
@@ -77,7 +78,8 @@ pub fn write_quants_from_components(
     let mut name_file = GzEncoder::new(name_file_handle, Compression::default());
 
     // write cluster file
-    let mut cluster_file = File::create(file_list.cluster_file.clone()).expect("Could not write cluster file");
+    let mut cluster_file =
+        File::create(file_list.cluster_file.clone()).expect("Could not write cluster file");
 
     let shape = gibbs_mat.shape();
     let new_height = components.len();
@@ -86,14 +88,12 @@ pub fn write_quants_from_components(
     // new structure for gibbs
     let mut gibbs_new_mat = Array2::<f64>::zeros((new_height, new_width));
 
-
     // new structure for quant
     // let rec = parse_quant(&quant_file, &meta_info);
-    let mut quant_new_rec : Vec<TxpRecord> = Vec::new();
+    let mut quant_new_rec: Vec<TxpRecord> = Vec::new();
     quant_new_rec.resize_with(new_height, Default::default);
 
-
-    // meta file 
+    // meta file
     // println!("{:?}, {}, {}", file_list.mi_file, new_height, shape[0]);
     let mut meta_info_new = meta_info.clone();
     meta_info_new.num_valid_targets = new_height.try_into().unwrap();
@@ -102,55 +102,56 @@ pub fn write_quants_from_components(
     json_file.write_all(meta_info_data.as_bytes())?;
 
     // names.tsv.gz
-    let mut name_vec : Vec<String> = vec!["".to_string(); new_height];
+    let mut name_vec: Vec<String> = vec!["".to_string(); new_height];
 
     //let mut new_map = vec![0 as usize; new_height];
     //let mut ind = 0 as usize;
-    
-    for (i, comp) in components.iter().enumerate(){
-        if comp.len() == 1{
+
+    for (i, comp) in components.iter().enumerate() {
+        if comp.len() == 1 {
             // write it as it is
-            let mut s = gibbs_new_mat.slice_mut(s![i,..]);
+            let mut s = gibbs_new_mat.slice_mut(s![i, ..]);
             let component_index = comp[0].index();
             let to_initiate = gibbs_mat.index_axis(Axis(0), component_index).to_owned();
             s += &to_initiate;
 
-            if let Some(txp_rec_elem) = quant_new_rec.get_mut(i){
+            if let Some(txp_rec_elem) = quant_new_rec.get_mut(i) {
                 let s = rec[component_index].clone();
-                txp_rec_elem.assign(&s); 
-            }                    
+                txp_rec_elem.assign(&s);
+            }
 
-            name_vec[i] = rec[component_index].Name.clone() ;
-            
-        }else{
-            
+            name_vec[i] = rec[component_index].Name.clone();
+        } else {
             // collpase groups
 
             // the slice that will hold the gibbs samples for the group
-            let mut s = gibbs_new_mat.slice_mut(s![i,..]);
+            let mut s = gibbs_new_mat.slice_mut(s![i, ..]);
 
             // the sum of TPM for elements in the group (for normalizing lengths)
-            let group_tpm = comp.iter().map(|g| rec[g.index()].TPM).fold(0_f64, |sum, e| sum + e as f64);
+            let group_tpm = comp
+                .iter()
+                .map(|g| rec[g.index()].TPM)
+                .fold(0_f64, |sum, e| sum + e as f64);
             let nonzero = group_tpm > 0_f64;
 
             // rewrite quants
-            let new_name = format!("NewTr{}",i);
+            let new_name = format!("NewTr{}", i);
             name_vec[i] = new_name.clone();
 
-            let mut member_names : Vec<String> = Vec::with_capacity(comp.len());
+            let mut member_names: Vec<String> = Vec::with_capacity(comp.len());
 
-            if let Some(txp_rec_elem) = quant_new_rec.get_mut(i){
+            if let Some(txp_rec_elem) = quant_new_rec.get_mut(i) {
                 let mut weighted_len;
                 let mut weighted_eff_len;
 
                 let mut component_index = comp[0].index();
-                
-                s += &gibbs_mat.index_axis(Axis(0), component_index).to_owned(); 
-                
+
+                s += &gibbs_mat.index_axis(Axis(0), component_index).to_owned();
+
                 let initial_elem = rec[component_index].clone();
                 member_names.push(initial_elem.Name.clone());
 
-                txp_rec_elem.assign(&initial_elem); 
+                txp_rec_elem.assign(&initial_elem);
                 // the name is the new name
                 txp_rec_elem.Name = new_name.clone();
                 // the starting effective length is the *weighted* effective length
@@ -164,18 +165,18 @@ pub fn write_quants_from_components(
                 }
 
                 for g in comp.iter().skip(1) {
-                    component_index = g.index();                    
-                    s += &gibbs_mat.index_axis(Axis(0), component_index).to_owned(); 
+                    component_index = g.index();
+                    s += &gibbs_mat.index_axis(Axis(0), component_index).to_owned();
 
                     let old_elem = rec[component_index].clone();
                     let expression_ratio = old_elem.TPM as f64 / group_tpm;
                     txp_rec_elem.TPM += old_elem.TPM;
                     txp_rec_elem.NumReads += old_elem.NumReads;
-                    if nonzero { 
+                    if nonzero {
                         weighted_len += (old_elem.Length as f64) * expression_ratio;
                         weighted_eff_len += (old_elem.EffectiveLength as f64) * expression_ratio;
                     } else {
-                        weighted_eff_len = if old_elem.EffectiveLength as f64 > weighted_eff_len { 
+                        weighted_eff_len = if old_elem.EffectiveLength as f64 > weighted_eff_len {
                             old_elem.EffectiveLength as f64
                         } else {
                             weighted_eff_len
@@ -195,51 +196,47 @@ pub fn write_quants_from_components(
                 txp_rec_elem.EffectiveLength = weighted_eff_len as f32;
             }
 
-            writeln!(cluster_file, "{},{}",new_name, member_names.join(","))?;
+            writeln!(cluster_file, "{},{}", new_name, member_names.join(","))?;
         }
-        
-
     }
 
     // write bootstrap file
     gibbs_new_mat = gibbs_new_mat.reversed_axes();
     //println!("{:?}, {}", gibbs_new_mat.shape(),gibbs_new_mat.len());
     assert!([new_width, new_height] == gibbs_new_mat.shape());
-    
+
     for i in 0..(new_width) {
         let mut data: Vec<u8> = vec![0; (new_height * 8) as usize];
         //br.read_exact(&mut data[..]).expect("could not read from inferential replicate file");
         //let mut floats: na::DVector<f64> = na::DVector::<f64>::from_element(nt, 0.0);// Vec<f64> = vec![0.0_f64; nt];
-        LittleEndian::write_f64_into(&gibbs_new_mat.slice(s![i,..]).to_vec(), &mut data);
+        LittleEndian::write_f64_into(&gibbs_new_mat.slice(s![i, ..]).to_vec(), &mut data);
         file.write_all(&data)?;
     }
 
-
     // write quant.sf file
     // println!("{}",msg);
-    quant_buf_writer.write_all(b"Name\tLength\tEffectiveLength\tTPM\tNumReads\n").expect("couldn't write to quant.sf");
+    quant_buf_writer
+        .write_all(b"Name\tLength\tEffectiveLength\tTPM\tNumReads\n")
+        .expect("couldn't write to quant.sf");
 
     for elem in &quant_new_rec {
-        quant_buf_writer.write_all(&format!("{}\t{}\t{}\t{}\t{}\n",
-                                    elem.Name,
-                                    elem.Length,
-                                    elem.EffectiveLength,
-                                    elem.TPM,
-                                    elem.NumReads
-                                ).as_bytes()
-                            ).expect("couldn't write to quant.sf");
+        quant_buf_writer
+            .write_all(
+                &format!(
+                    "{}\t{}\t{}\t{}\t{}\n",
+                    elem.Name, elem.Length, elem.EffectiveLength, elem.TPM, elem.NumReads
+                )
+                .as_bytes(),
+            )
+            .expect("couldn't write to quant.sf");
     }
 
     name_file.write_all(name_vec.join("\t").as_bytes())?;
     Ok(true)
 }
 
-
 #[allow(dead_code)]
-pub fn parse_quant(
-    p: &std::path::Path,
-    mi: &MetaInfo,
-) -> Result<Vec<TxpRecord>, io::Error> {
+pub fn parse_quant(p: &std::path::Path, mi: &MetaInfo) -> Result<Vec<TxpRecord>, io::Error> {
     let file = File::open(p);
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(true)
@@ -261,12 +258,11 @@ pub fn parse_quant(
     Ok(rs)
 }
 
-
 pub fn parse_json(p: &std::path::Path) -> Result<MetaInfo, io::Error> {
     let file = File::open(p);
     let reader = BufReader::new(file.unwrap());
 
-    let jd : MetaInfo = serde_json::from_reader(reader).unwrap();
+    let jd: MetaInfo = serde_json::from_reader(reader).unwrap();
     println!("# targets : {}", jd.num_valid_targets);
     println!("did serialize eq classes : {}", jd.serialized_eq_classes);
     println!("# boot : {}", jd.num_bootstraps);
@@ -282,8 +278,9 @@ pub fn read_gibbs(f: &std::path::Path, mi: &MetaInfo, gibbs_mat: &mut na::DMatri
     let nt = mi.num_valid_targets as usize;
     for i in 0..(mi.num_bootstraps) {
         let mut data: Vec<u8> = vec![0; (nt * 8) as usize];
-        br.read_exact(&mut data[..]).expect("could not read from inferential replicate file");
-        let mut floats: na::DVector<f64> = na::DVector::<f64>::from_element(nt, 0.0);// Vec<f64> = vec![0.0_f64; nt];
+        br.read_exact(&mut data[..])
+            .expect("could not read from inferential replicate file");
+        let mut floats: na::DVector<f64> = na::DVector::<f64>::from_element(nt, 0.0); // Vec<f64> = vec![0.0_f64; nt];
         LittleEndian::read_f64_into(&data, floats.as_mut_slice());
         let mut col = gibbs_mat.column_mut(i as usize);
         col.copy_from(&(&col + floats));
@@ -293,12 +290,7 @@ pub fn read_gibbs(f: &std::path::Path, mi: &MetaInfo, gibbs_mat: &mut na::DMatri
     //println!("{:?}", size);
 }
 
-
-pub fn read_gibbs_array(
-    f: &std::path::Path, 
-    mi: &MetaInfo, 
-    gibbs_mat: &mut Array2<f64>) 
-    {
+pub fn read_gibbs_array(f: &std::path::Path, mi: &MetaInfo, gibbs_mat: &mut Array2<f64>) {
     let file = File::open(f);
     let s = GzDecoder::new(file.unwrap());
     let mut br = io::BufReader::new(s);
@@ -306,10 +298,13 @@ pub fn read_gibbs_array(
     let nt = mi.num_valid_targets as usize;
     for i in 0..(mi.num_bootstraps) {
         let mut data: Vec<u8> = vec![0; (nt * 8) as usize];
-        br.read_exact(&mut data[..]).expect("could not read from inferential replicate file");
-        let mut floats = vec![0.0; nt];// Vec<f64> = vec![0.0_f64; nt];
+        br.read_exact(&mut data[..])
+            .expect("could not read from inferential replicate file");
+        let mut floats = vec![0.0; nt]; // Vec<f64> = vec![0.0_f64; nt];
         LittleEndian::read_f64_into(&data, &mut floats);
-        gibbs_mat.slice_mut(s![..,i as usize]).assign(&Array::from(floats))
+        gibbs_mat
+            .slice_mut(s![.., i as usize])
+            .assign(&Array::from(floats))
         //let mut col = gibbs_mat.column_mut(i as usize);
         //col.assign(&float);
     }
@@ -339,17 +334,15 @@ pub fn get_ambig(filename: &std::path::Path) -> Vec<u32> {
 }
 
 #[allow(dead_code)]
-pub fn group_reader(
-    filename: &std::path::Path
-) -> Vec<Vec<usize>> {
+pub fn group_reader(filename: &std::path::Path) -> Vec<Vec<usize>> {
     let file = File::open(filename).unwrap();
     let buf_reader = BufReader::new(file);
-    
+
     let mut groups = Vec::new();
-    for (_i,l) in buf_reader.lines().enumerate(){
+    for (_i, l) in buf_reader.lines().enumerate() {
         let s = l.unwrap();
-        let v : Vec<_> = s.trim().rsplit(',').collect();
-        let group : Vec<usize> = v.iter().map(|n| n.parse::<usize>().unwrap()).collect();
+        let v: Vec<_> = s.trim().rsplit(',').collect();
+        let group: Vec<usize> = v.iter().map(|n| n.parse::<usize>().unwrap()).collect();
 
         groups.push(group.clone());
     }
@@ -368,19 +361,23 @@ fn infrv_1d(a: ArrayView1<'_, f64>) -> f64 {
     let mu = a.mean().unwrap() - 1.;
     let var = a.var_axis(Axis(0), 1.).into_scalar();
     //(var) / (mu + 0.1) + 0.01
-    if (var - mu) >= 0. { (var - mu) / (mu + 5.) + 0.01 } else { 0.01 }
+    if (var - mu) >= 0. {
+        (var - mu) / (mu + 5.) + 0.01
+    } else {
+        0.01
+    }
 }
 
 // find min and max divide by mean
 fn spread1d(a: ArrayView1<'_, f64>) -> f64 {
-    let n = a.len() as f64 ;
+    let n = a.len() as f64;
     if n == 0. {
-        return 0. ;
+        return 0.;
     }
-    let mean = a.sum() / n ;
-    let minimum = a.fold(f64::INFINITY, |m, &x| m.min(x)) ;
-    let maximum = a.fold(-f64::INFINITY, |m : f64, &x| m.max(x));
-    ((maximum - minimum)/mean)
+    let mean = a.sum() / n;
+    let minimum = a.fold(f64::INFINITY, |m, &x| m.min(x));
+    let maximum = a.fold(-f64::INFINITY, |m: f64, &x| m.max(x));
+    ((maximum - minimum) / mean)
 }
 
 fn infrv(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
@@ -391,31 +388,23 @@ fn spread(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
     a.map_axis(axis, spread1d)
 }
 
-pub fn get_infrv_percentile(
-    gibbs_mat: &Array2<f64>,
-    p : f64 
-) -> f64 {
+pub fn get_infrv_percentile(gibbs_mat: &Array2<f64>, p: f64) -> f64 {
     assert!(0. < p);
     assert!(p < 1.);
-    let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1)) ;
+    let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1));
     let gibbs_nz: Vec<_> = gibbs_mat_sum
         .indexed_iter()
         .filter_map(|(index, &item)| if item > 1.0 { Some(index) } else { None })
         .collect();
-    
+
     let infrv_array = infrv(&gibbs_mat, Axis(1));
-    let mut infrv_sort : Vec<f64> = gibbs_nz.iter().map(|i| infrv_array[*i as usize]).collect();
+    let mut infrv_sort: Vec<f64> = gibbs_nz.iter().map(|i| infrv_array[*i as usize]).collect();
     let n = infrv_sort.len();
     rgsl::sort::vectors::sort(&mut infrv_sort, 1, n);
-    rgsl::statistics::quantile_from_sorted_data( &infrv_sort, 1, infrv_sort.len(), p)
+    rgsl::statistics::quantile_from_sorted_data(&infrv_sort, 1, infrv_sort.len(), p)
 }
 
-pub fn endpoints_overdispersed(    
-    infrv_array: &Array1<f64>,
-    m: f64,
-    x: usize,
-    y: usize
-) -> bool {
+pub fn endpoints_overdispersed(infrv_array: &Array1<f64>, m: f64, x: usize, y: usize) -> bool {
     infrv_array[x] >= m && infrv_array[y] >= m
 }
 
@@ -425,23 +414,26 @@ fn variance(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
 }
 */
 
-pub fn get_threhold(
-    gibbs_mat: &Array2<f64>,
-    infrv_quant : f64,
-    file_list : &FileList
-) -> f64 {
-
+pub fn get_threhold(gibbs_mat: &Array2<f64>, infrv_quant: f64, file_list: &FileList) -> f64 {
     println!("Calculating threhold");
-    let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1)) ;
-    let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap() ;
+    let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1));
+    let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
     let gibbs_nz: Vec<_> = gibbs_mat_sum
         .indexed_iter()
         .filter_map(|(index, &item)| if item > 1.0 { Some(index) } else { None })
         .collect();
-    
+
     let infrv_array = infrv(&gibbs_mat, Axis(1));
-    
-    let dat = gibbs_nz.iter().map(|i| format!("{}\t{}",gibbs_mat_mean[*i as usize], infrv_array[*i as usize])).join("\n");
+
+    let dat = gibbs_nz
+        .iter()
+        .map(|i| {
+            format!(
+                "{}\t{}",
+                gibbs_mat_mean[*i as usize], infrv_array[*i as usize]
+            )
+        })
+        .join("\n");
     let infrv_log = file_list.prefix.as_path().join("infrv.log");
     std::fs::write(infrv_log, dat).expect("could not write to the infrv.log");
 
@@ -449,27 +441,27 @@ pub fn get_threhold(
     let mut dfile = File::create(die_roll_log.clone()).expect("could not create die roll.log");
     // let infrv_array = variance(&gibbs_mat, Axis(1));
     let mut converged = false;
-    let starting_num_samples = (gibbs_nz.len() as f64)  * 1. ;
+    let starting_num_samples = (gibbs_nz.len() as f64) * 1.;
     println!("\n\nstarting samp : {}\n\n", starting_num_samples);
-    
 
     let mut starting_num_samples = starting_num_samples as usize;
 
     let mut old_threshold = 0.0 as f64;
     let mut new_threshold = 0.0 as f64;
-    while !converged { //starting_num_samples < gibbs_nz.len(){
+    while !converged {
+        //starting_num_samples < gibbs_nz.len(){
         let mut rng = thread_rng();
         let die_range = Uniform::new(0, gibbs_nz.len());
         let mut roll_die = die_range.sample_iter(&mut rng);
-    
+
         let mut sampled_infrv = vec![OrderedFloat(0.0); starting_num_samples as usize];
         let mut dice_iter = 0 as usize;
         let mut mean_sum = 0.0f64;
-    
-        while dice_iter < starting_num_samples as usize{
+
+        while dice_iter < starting_num_samples as usize {
             let i1 = roll_die.next().unwrap();
             let mut i2 = roll_die.next().unwrap();
-            while i1 == i2{
+            while i1 == i2 {
                 i2 = roll_die.next().unwrap();
             }
 
@@ -481,27 +473,41 @@ pub fn get_threhold(
             // let s = get_collapse_score(&gibbs_mat, &infrv_array, t1, t2);
             // let s = get_variance_fold_change(&gibbs_mat, &infrv_array, t1, t2);
             // let s = get_infrv_fold_change(&gibbs_mat, &infrv_array, t1, t2);
-            let msg = format!("{}\t{}\t{}\t{}\t{}\n", gibbs_mat_mean[t1], gibbs_mat_mean[t2], infrv_array[t1], infrv_array[t2], s);
-            dfile.write_all(&msg.into_bytes()).expect("could not write to log");
-            sampled_infrv[dice_iter] = OrderedFloat(s) ;
+            let msg = format!(
+                "{}\t{}\t{}\t{}\t{}\n",
+                gibbs_mat_mean[t1], gibbs_mat_mean[t2], infrv_array[t1], infrv_array[t2], s
+            );
+            dfile
+                .write_all(&msg.into_bytes())
+                .expect("could not write to log");
+            sampled_infrv[dice_iter] = OrderedFloat(s);
             mean_sum += s;
             dice_iter += 1;
-    
-            if dice_iter % 1000 == 1 { print!("dice roll: {}\r", dice_iter); }
+
+            if dice_iter % 1000 == 1 {
+                print!("dice roll: {}\r", dice_iter);
+            }
         }
         // calculate threhold
         sampled_infrv.sort();
         let mean = mean_sum / (dice_iter as f64);
-        let shifted_samples : Vec<f64> = sampled_infrv.iter().map(|s| s.to_f64().unwrap() - mean).collect();
-        let shifted_samples_pos : Vec<f64> = shifted_samples.into_iter().filter(|&x| x >= 0.0).collect::<Vec<_>>();
-        let mid = shifted_samples_pos.len()/2 ;
+        let shifted_samples: Vec<f64> = sampled_infrv
+            .iter()
+            .map(|s| s.to_f64().unwrap() - mean)
+            .collect();
+        let shifted_samples_pos: Vec<f64> = shifted_samples
+            .into_iter()
+            .filter(|&x| x >= 0.0)
+            .collect::<Vec<_>>();
+        let mid = shifted_samples_pos.len() / 2;
         let median = shifted_samples_pos[mid];
         //let median = sampled_infrv[sampled_infrv.len()/2].to_f64().unwrap();
         new_threshold = mean - (median * 1.48 * 1.95);
         //let sinfrv : Vec<f64> = sampled_infrv.iter().map(|x| x.into_inner()).collect();
         //new_threshold = rgsl::statistics::quantile_from_sorted_data(&sinfrv, 1, sinfrv.len(), 0.025);
 
-        if ((new_threshold - old_threshold) / new_threshold) < 0.001 {//- new_threshold).abs() < 1e-3{
+        if ((new_threshold - old_threshold) / new_threshold) < 0.001 {
+            //- new_threshold).abs() < 1e-3{
             converged = true;
         }
 
@@ -515,17 +521,17 @@ pub fn get_collapse_score(
     gibbs_mat: &Array2<f64>,
     infrv_array: &Array1<f64>,
     x: usize,
-    y: usize
+    y: usize,
 ) -> f64 {
-   let infa = infrv_array[x];
-   let infb = infrv_array[y];
-   let sum = &gibbs_mat.row(x) + &gibbs_mat.row(y);
-   //let submat = stack![Axis(0), gibbs_mat.slice(s![x..x+1,..]), gibbs_mat.slice(s![y..y+1,..])];
-   //let covmat = submat.cov(1.).unwrap();
-   let infsum = infrv_1d(sum.view());
-   //let (maxrv, minrv) = if infa < infb { (infb, infa) } else { (infa, infb) };
-   infsum - ((infa + infb) * 0.5)
-   //infsum - (infa + infb) - covmat[[0,1]]
+    let infa = infrv_array[x];
+    let infb = infrv_array[y];
+    let sum = &gibbs_mat.row(x) + &gibbs_mat.row(y);
+    //let submat = stack![Axis(0), gibbs_mat.slice(s![x..x+1,..]), gibbs_mat.slice(s![y..y+1,..])];
+    //let covmat = submat.cov(1.).unwrap();
+    let infsum = infrv_1d(sum.view());
+    //let (maxrv, minrv) = if infa < infb { (infb, infa) } else { (infa, infb) };
+    infsum - ((infa + infb) * 0.5)
+    //infsum - (infa + infb) - covmat[[0,1]]
 }
 
 /*
@@ -562,16 +568,16 @@ pub fn get_variance_fold_change(
 pub fn eq_experiment_to_graph(
     exp: &EqClassExperiment,
     gibbs_mat: &mut Array2<f64>,
-    eq_class_count : &[u32],
-    tolerance : f64,
-    thr : f64,
-    infrv_quant : f64,
-    min_spread : f64,
-    delta_file : &mut File,
-    unionfind_struct : &mut UnionFind<usize>
+    eq_class_count: &[u32],
+    tolerance: f64,
+    thr: f64,
+    infrv_quant: f64,
+    min_spread: f64,
+    delta_file: &mut File,
+    unionfind_struct: &mut UnionFind<usize>,
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
-    
+
     // create a hash of eqclasses
     /*
     println!("Creating hash table for eqclasses");
@@ -621,7 +627,7 @@ pub fn eq_experiment_to_graph(
             for t in tlist.iter().skip(1){
                 let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
                 let mut s = gibbs_mat.slice_mut(s![source as usize,..]);
-                s += &to_add; 
+                s += &to_add;
                 unionfind_struct.union(source as usize, *t as usize);
             }
         }
@@ -634,16 +640,16 @@ pub fn eq_experiment_to_graph(
     let part_start = Instant::now();
     let mut valid_transcripts = vec![false; exp.targets.len()];
     let mut part = Partition::simple(exp.targets.len());
-    for (i,x) in exp.classes.iter().enumerate() {
+    for (i, x) in exp.classes.iter().enumerate() {
         if i % 10000 == 1 {
-            print!("{}\r",i);
+            print!("{}\r", i);
             io::stdout().flush().unwrap();
         }
         let ns = x.0;
         let ws = x.1;
-        
-        if ns.len() < 2{
-            part.refine(&[ns[0] as usize]);    
+
+        if ns.len() < 2 {
+            part.refine(&[ns[0] as usize]);
             continue;
         }
 
@@ -651,10 +657,10 @@ pub fn eq_experiment_to_graph(
         //let retained : std::vec::Vec<usize> = (0..ns.len()).filter_map(
         //    |j| if ws[j as usize] >= thresh { Some(j as usize) } else { None} ).collect();
 
-        let _wsrounded : Vec<i32> = ws.iter().map(|&w| (w * 1000f32).round() as i32).collect();
+        let _wsrounded: Vec<i32> = ws.iter().map(|&w| (w * 1000f32).round() as i32).collect();
         let mut pair_vec = Vec::with_capacity(ns.len());
-        for j in 0..ns.len(){
-            pair_vec.push((ns[j],OrderedFloat(ws[j])));
+        for j in 0..ns.len() {
+            pair_vec.push((ns[j], OrderedFloat(ws[j])));
             valid_transcripts[ns[j] as usize] = true;
         }
         pair_vec.sort_by_key(|k| k.1);
@@ -664,18 +670,18 @@ pub fn eq_experiment_to_graph(
         let mut j = 0 as usize;
         let mut tmp_vec = Vec::with_capacity(ns.len());
 
-        while j < pair_vec.len()-1{
-            let mut diff = pair_vec[j+1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap();
+        while j < pair_vec.len() - 1 {
+            let mut diff = pair_vec[j + 1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap();
             tmp_vec.clear();
             tmp_vec.push(pair_vec[j].0 as usize);
-            while diff < tolerance{
-                tmp_vec.push(pair_vec[j+1].0 as usize);
+            while diff < tolerance {
+                tmp_vec.push(pair_vec[j + 1].0 as usize);
                 valid_transcripts[pair_vec[j].0 as usize] = true;
-                valid_transcripts[pair_vec[j+1].0 as usize] = true;
+                valid_transcripts[pair_vec[j + 1].0 as usize] = true;
                 j += 1;
-                if j < pair_vec.len() - 1{
-                    diff = pair_vec[j+1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap() ;
-                }else{
+                if j < pair_vec.len() - 1 {
+                    diff = pair_vec[j + 1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap();
+                } else {
                     break;
                 }
             }
@@ -707,60 +713,75 @@ pub fn eq_experiment_to_graph(
 
     let part_vec = part.iter().collect::<Vec<_>>();
     let mut golden_collapses = 0;
-    for (_,p) in part_vec.iter().enumerate(){
-         if p.len() > 1{
-             //println!("{:?}", p);
-             if valid_transcripts[p[0]]{
-                if p.len() > 10{
-                    println!("{},{}", p.len(),p[0]);
+    for (_, p) in part_vec.iter().enumerate() {
+        if p.len() > 1 {
+            //println!("{:?}", p);
+            if valid_transcripts[p[0]] {
+                if p.len() > 10 {
+                    println!("{},{}", p.len(), p[0]);
                 }
                 let mut tlist = p.to_vec();
                 tlist.sort();
                 let source = tlist[0];
-                for t in tlist.iter().skip(1){
+                for t in tlist.iter().skip(1) {
                     let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
-                    let mut s = gibbs_mat.slice_mut(s![source as usize,..]);
-                    s += &to_add; 
+                    let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
+                    s += &to_add;
                     unionfind_struct.union(source as usize, *t as usize);
                     golden_collapses += 1;
                 }
             } else if p.len() > 10 {
-                    println!("{}", p.len());
+                println!("{}", p.len());
             }
         }
     }
     println!("Number of golden collapses {}", golden_collapses);
     println!("The refinery code ran for {:?}", part_start.elapsed());
 
-    
     let mut og = pg::Graph::<usize, EdgeInfo, petgraph::Undirected>::new_undirected();
     for (i, _n) in exp.targets.iter().enumerate() {
-            let idx = og.add_node(i);
-            // the index assigned by the graph should be the
-            // order in which we add these
-            debug_assert_eq!(i, idx.index());
+        let idx = og.add_node(i);
+        // the index assigned by the graph should be the
+        // order in which we add these
+        debug_assert_eq!(i, idx.index());
     }
 
     // compute the mean of the elemenrs
-    let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap() ;
+    let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
     let gibbs_mat_spread = spread(&gibbs_mat, Axis(1));
-    
+
     // apply threashold
-    let filtered_indices_spread: Vec<u32> = gibbs_mat_spread.indexed_iter().filter_map(
-            |(index, &item)| 
-            if item > min_spread && gibbs_mat_mean[index] > 1.0 { Some(index as u32) } else { None }
-    ).collect();
-   
-    let filtered_indices_exp: Vec<u32> = gibbs_mat_spread.indexed_iter().filter_map(
-            |(index, &_item)| 
-            if gibbs_mat_mean[index] > 1.0 { Some(index as u32) } else { None }
-    ).collect();
-    
+    let filtered_indices_spread: Vec<u32> = gibbs_mat_spread
+        .indexed_iter()
+        .filter_map(|(index, &item)| {
+            if item > min_spread && gibbs_mat_mean[index] > 1.0 {
+                Some(index as u32)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let filtered_indices_exp: Vec<u32> = gibbs_mat_spread
+        .indexed_iter()
+        .filter_map(|(index, &_item)| {
+            if gibbs_mat_mean[index] > 1.0 {
+                Some(index as u32)
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let mut filtered_indices_vec = vec![false; exp.targets.len()];
     let mut filtered_indices_mean_vec = vec![false; exp.targets.len()];
 
-    for i in filtered_indices_spread { filtered_indices_vec[i as usize] = true; }
-    for i in filtered_indices_exp { filtered_indices_mean_vec[i as usize] = true; }
+    for i in filtered_indices_spread {
+        filtered_indices_vec[i as usize] = true;
+    }
+    for i in filtered_indices_exp {
+        filtered_indices_mean_vec[i as usize] = true;
+    }
 
     //let shape = gibbs_mat.shape() ;
     let infrv_array = infrv(&gibbs_mat, Axis(1));
@@ -773,68 +794,84 @@ pub fn eq_experiment_to_graph(
     // println!("Computing correlation {:?}", start_corr.elapsed());
     //correlation(data1: &[f64], stride1: usize, data2: &[f64], stride2: usize, n: usize)
 
-
     for (i, x) in exp.classes.iter().enumerate() {
-
         let ns = x.0;
         let ws = x.1;
         let eq_count = x.2;
         assert!(eq_count == eq_class_count[i]);
 
         let thresh = 0.1 * (1.0 / ns.len() as f32);
-        
-        let retained : std::vec::Vec<usize> = (0..ns.len()).filter_map(
-            |j| if ws[j as usize] >= thresh { Some(ns[j] as usize) } else { None} ).collect();
+
+        let retained: std::vec::Vec<usize> = (0..ns.len())
+            .filter_map(|j| {
+                if ws[j as usize] >= thresh {
+                    Some(ns[j] as usize)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         for a in 0..retained.len() {
             let mut na = retained[a] as usize;
             let na_root = unionfind_struct.find(na);
             if na_root != na {
-                na = na_root ;
+                na = na_root;
             }
 
             for nb in retained.iter().skip(a + 1) {
-                let mut nbd = *nb as usize ;
+                let mut nbd = *nb as usize;
                 let nb_root = unionfind_struct.find(nbd);
                 if nb_root != nbd {
                     nbd = nb_root;
                 }
 
-                if na == nbd{
+                if na == nbd {
                     continue;
                 }
 
-                if endpoints_overdispersed(&infrv_array, infrv_quant, na, nbd) && 
-                  (filtered_indices_vec[na] || filtered_indices_vec[nbd]) //&&
-                 //  (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[*nb]) 
+                if endpoints_overdispersed(&infrv_array, infrv_quant, na, nbd)
+                    && (filtered_indices_vec[na] || filtered_indices_vec[nbd])
+                //&&
+                //  (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[*nb])
                 {
-                    let (u,v) = if na < nbd {(na,nbd)} else {(nbd, na)};
+                    let (u, v) = if na < nbd { (na, nbd) } else { (nbd, na) };
 
                     let va = pg::graph::NodeIndex::new(u);
                     let vb = pg::graph::NodeIndex::new(v);
-                    let e = og.find_edge(va,vb);
+                    let e = og.find_edge(va, vb);
                     match e {
-                       Some(ei) => {
-                           let mut ew = og.edge_weight_mut(ei).unwrap();
-                           ew.count += eq_count;
-                           ew.eqlist.push(i);
-                       },
-                       None =>  {
-                           // only add the edge if the correlation is sufficientl
-                           // small
-                           let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, *nb);
-                           // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
-                           //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
-                        
-                           let s = format!("{}\t{}\t{}\n", na, *nb, delta);
-                           delta_file.write_all(s.as_bytes()).expect("failed to write to delta.log file");
-                        //    if (u == 116212) && (v == 116212){
-                        //        println!("=================={}================", delta);
-                        //    }
-                           if delta < thr {
-                                og.add_edge(va, vb, 
-                                    EdgeInfo {infrv_gain: delta, count: eq_count, state : -1, eqlist : vec![i]});
-                           }
+                        Some(ei) => {
+                            let mut ew = og.edge_weight_mut(ei).unwrap();
+                            ew.count += eq_count;
+                            ew.eqlist.push(i);
+                        }
+                        None => {
+                            // only add the edge if the correlation is sufficientl
+                            // small
+                            let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, *nb);
+                            // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
+                            //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
+
+                            let s = format!("{}\t{}\t{}\n", na, *nb, delta);
+                            delta_file
+                                .write_all(s.as_bytes())
+                                .expect("failed to write to delta.log file");
+                            //    if (u == 116212) && (v == 116212){
+                            //        println!("=================={}================", delta);
+                            //    }
+                            if delta < thr {
+                                og.add_edge(
+                                    va,
+                                    vb,
+                                    EdgeInfo {
+                                        infrv_gain: delta,
+                                        count: eq_count,
+                                        state: -1,
+                                        eqlist: vec![i],
+                                    },
+                                );
+                            }
                         }
                     }
                 } // if not filtered and count big enough
@@ -843,17 +880,22 @@ pub fn eq_experiment_to_graph(
         //println!("{:?} :: {:?} :: [{:?}]", x.0, x.1, x.2);
     }
 
-    let og2 = og.filter_map( 
+    let og2 = og.filter_map(
         |_ni, n| Some(*n),
         |ei, e| {
             let (a, b) = og.edge_endpoints(ei).unwrap();
-            let min_mean = gibbs_mat_mean[a.index()].min(gibbs_mat_mean[b.index()]); 
-            if (e.count as f64) > min_mean{
-                Some(EdgeInfo{ infrv_gain: e.infrv_gain, count: e.count, state : -1, eqlist : e.eqlist.clone()})
+            let min_mean = gibbs_mat_mean[a.index()].min(gibbs_mat_mean[b.index()]);
+            if (e.count as f64) > min_mean {
+                Some(EdgeInfo {
+                    infrv_gain: e.infrv_gain,
+                    count: e.count,
+                    state: -1,
+                    eqlist: e.eqlist.clone(),
+                })
             } else {
                 None
             }
-        }
+        },
     );
     println!("Prev node count: {}", og.node_count());
     println!("Prev edge count: {}", og.edge_count());
@@ -898,7 +940,7 @@ fn union<T: std::cmp::PartialOrd + Copy>(a: &[T], b: &[T]) -> std::vec::Vec<T> {
     let mut vb = ib.next();
     let mut out = std::vec::Vec::with_capacity(a.len() + b.len());
     while va.is_some() || vb.is_some() {
-        if va.is_some() && vb.is_some(){
+        if va.is_some() && vb.is_some() {
             if *(va.unwrap()) < *(vb.unwrap()) {
                 out.push(*(va.unwrap()));
                 va = ia.next();
@@ -916,10 +958,10 @@ fn union<T: std::cmp::PartialOrd + Copy>(a: &[T], b: &[T]) -> std::vec::Vec<T> {
                     vb = ib.next();
                 }
             }
-        } else if va.is_some(){
+        } else if va.is_some() {
             out.push(*(va.unwrap()));
             va = ia.next();
-        }else{
+        } else {
             out.push(*(vb.unwrap()));
             vb = ib.next();
         }
@@ -927,22 +969,20 @@ fn union<T: std::cmp::PartialOrd + Copy>(a: &[T], b: &[T]) -> std::vec::Vec<T> {
     out
 }
 
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct EdgeState {
     infrv_gain: OrderedFloat<f64>,
     source: usize,
     target: usize,
-    state: i32
+    state: i32,
 }
 
-
 pub fn verify_graph(
-    eq_class_count : &[u32],
-    og : &mut pg::Graph<usize, EdgeInfo, petgraph::Undirected>
+    eq_class_count: &[u32],
+    og: &mut pg::Graph<usize, EdgeInfo, petgraph::Undirected>,
 ) {
     for e in og.edge_references() {
-        let eweight  = e.weight();
+        let eweight = e.weight();
         let c = eweight.count;
         let mut vc = 0usize;
         for eq in &eweight.eqlist {
@@ -954,93 +994,113 @@ pub fn verify_graph(
     }
 }
 
-
 //util::work_on_component(&eq_class, &gibbs_array, &og, &comp);
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn work_on_component(
-    eq_class_count : &[u32],
-    gibbs_mat : &mut Array2<f64>,
-    gibbs_mat_mean : &mut Array1<f64>,
-    unionfind_struct : &mut UnionFind<usize>,
-    og : &mut pg::Graph<usize, EdgeInfo, petgraph::Undirected>,
-    comp : &[pg::graph::NodeIndex],
-    num_collapses : &mut usize,
-    thr : f64,
+    eq_class_count: &[u32],
+    gibbs_mat: &mut Array2<f64>,
+    gibbs_mat_mean: &mut Array1<f64>,
+    unionfind_struct: &mut UnionFind<usize>,
+    og: &mut pg::Graph<usize, EdgeInfo, petgraph::Undirected>,
+    comp: &[pg::graph::NodeIndex],
+    num_collapses: &mut usize,
+    thr: f64,
     infrv_quant: f64,
-    cfile : &mut File
+    cfile: &mut File,
 ) {
+    // make a set of edges to be visited
+    let mut infrv_array = infrv(&gibbs_mat, Axis(1));
+    //let mut infrv_array = variance(&gibbs_mat, Axis(1));
+    //let shape = gibbs_mat.shape().to_vec() ;
 
+    let mut heap = BinaryHeap::new_min();
 
-   // make a set of edges to be visited
-   let mut infrv_array = infrv(&gibbs_mat, Axis(1));
-   //let mut infrv_array = variance(&gibbs_mat, Axis(1));
-   //let shape = gibbs_mat.shape().to_vec() ;
-   
-   let mut heap = BinaryHeap::new_min();
-
-   for node in comp.iter(){
-       for e in og.edges(*node){
+    for node in comp.iter() {
+        for e in og.edges(*node) {
             // let (mut min_node, mut max_node) = (node_deref, next_node);
             let source = e.source().index();
             let target = e.target().index();
-            let w = e.weight().infrv_gain ;
-            let (u,v) = if source > target {(target,source)} else {(source, target)};
-            assert!(u < v,"source = {}, target = {}",
-                u,
-                v
+            let w = e.weight().infrv_gain;
+            let (u, v) = if source > target {
+                (target, source)
+            } else {
+                (source, target)
+            };
+            assert!(u < v, "source = {}, target = {}", u, v);
+
+            heap.push(EdgeState {
+                infrv_gain: OrderedFloat(w),
+                source: u,
+                target: v,
+                state: -1,
+            });
+        }
+    }
+
+    while let Some(EdgeState {
+        infrv_gain,
+        source,
+        target,
+        state,
+    }) = heap.pop()
+    {
+        // take the next available edge that can be collapsed
+        // correlation less than threashold
+        if infrv_gain < OrderedFloat(thr) {
+            // println!("mincorr {}\r",corr);
+            // if the edge count satisfies the criteria
+            let source_node = pg::graph::NodeIndex::new(source);
+            let target_node = pg::graph::NodeIndex::new(target);
+
+            assert!(
+                source_node.index() < target_node.index(),
+                "source = {}, source index = {}, target = {}, target index = {}",
+                source,
+                source_node.index(),
+                target,
+                target_node.index()
             );
 
-            heap.push(EdgeState { infrv_gain: OrderedFloat(w) , source: u, target: v, state: -1});
-       }
-   }
+            let u_to_v_id_opt = og.find_edge(source_node, target_node);
 
-   while let Some( EdgeState{ infrv_gain, source, target, state} ) = heap.pop() {
-       // take the next available edge that can be collapsed
-       // correlation less than threashold
-       if infrv_gain < OrderedFloat(thr) {
-           // println!("mincorr {}\r",corr);
-           // if the edge count satisfies the criteria
-           let source_node = pg::graph::NodeIndex::new(source);
-           let target_node = pg::graph::NodeIndex::new(target);
+            // only proceed if this edge still exists
+            if u_to_v_id_opt.is_none() {
+                continue;
+            }
 
-           assert!(source_node.index() < target_node.index(),"source = {}, source index = {}, target = {}, target index = {}",
-           source, source_node.index() ,target, target_node.index());
+            let u_to_v_id = u_to_v_id_opt.unwrap();
+            let u_to_v_info = og.edge_weight_mut(u_to_v_id).unwrap();
 
-           let u_to_v_id_opt = og.find_edge(source_node, target_node);
-           
-           // only proceed if this edge still exists
-           if u_to_v_id_opt.is_none(){
-               continue;
-           }
+            // only proceed if the state of this edge when
+            // placed on the heap is still the current state
+            if u_to_v_info.state != state {
+                continue;
+            }
 
-           let u_to_v_id = u_to_v_id_opt.unwrap();
-           let u_to_v_info = og.edge_weight_mut(u_to_v_id).unwrap();
+            // the min posterior mean among u and v
+            let min_mean = gibbs_mat_mean[source].min(gibbs_mat_mean[target]);
 
-           // only proceed if the state of this edge when
-           // placed on the heap is still the current state
-           if u_to_v_info.state != state {
-               continue ;
-           }
-
-           // the min posterior mean among u and v
-           let min_mean = gibbs_mat_mean[source].min(gibbs_mat_mean[target]);
-
-           // the count along this edge must be large enough to "matter"
-           if f64::from(u_to_v_info.count) >= min_mean{
-                let msg = format!("{}\t{}\t{}\t{}\t{}\n", source, target, infrv_array[source], infrv_array[target], infrv_gain);
+            // the count along this edge must be large enough to "matter"
+            if f64::from(u_to_v_info.count) >= min_mean {
+                let msg = format!(
+                    "{}\t{}\t{}\t{}\t{}\n",
+                    source, target, infrv_array[source], infrv_array[target], infrv_gain
+                );
                 //println!("{}",msg);
-                cfile.write_all(&msg.into_bytes()).expect("could not write into collapse log");
+                cfile
+                    .write_all(&msg.into_bytes())
+                    .expect("could not write into collapse log");
 
                 // one collapse guaranteed
                 *num_collapses += 1;
 
                 // remove the collapsed edge first so that
-                // u is not in neighbors(v) and 
+                // u is not in neighbors(v) and
                 // v is not in neighbors(u)
                 og.remove_edge(u_to_v_id);
 
                 // it's candidate for collapse
-                // when we collapse we modify the 
+                // when we collapse we modify the
                 // following
                 // i. gibbs_mat
                 // ii. gibbs_mat_mean
@@ -1049,16 +1109,22 @@ pub fn work_on_component(
                 // v. unionfind_array
                 unionfind_struct.union(source, target);
 
-                let to_add = gibbs_mat.index_axis(Axis(0), target).to_owned() ;
-                let mut s = gibbs_mat.slice_mut(s![source,..]) ;
-                s += &to_add ;
+                let to_add = gibbs_mat.index_axis(Axis(0), target).to_owned();
+                let mut s = gibbs_mat.slice_mut(s![source, ..]);
+                s += &to_add;
                 infrv_array[source] = infrv_1d(s.view());
                 gibbs_mat_mean[source] = s.sum() / (s.len() as f64);
-                
+
                 // update correlation for (u*v) to new and existing neighbors
-                let mut source_adj : Vec<usize> = og.neighbors(source_node).map(|n| n.clone().index()).collect();
-                let mut target_adj : Vec<usize> = og.neighbors(target_node).map(|n| n.clone().index()).collect();
-                
+                let mut source_adj: Vec<usize> = og
+                    .neighbors(source_node)
+                    .map(|n| n.clone().index())
+                    .collect();
+                let mut target_adj: Vec<usize> = og
+                    .neighbors(target_node)
+                    .map(|n| n.clone().index())
+                    .collect();
+
                 source_adj.sort();
                 target_adj.sort();
 
@@ -1069,47 +1135,63 @@ pub fn work_on_component(
                 // edge u-v is collapsed
                 // if u-x is already an edge, but v-x is *not*
                 // then we don't update count
-                for x in source_adj.iter(){
-                    if common_ids.contains(x){
+                for x in source_adj.iter() {
+                    if common_ids.contains(x) {
                         continue;
                     }
                     // it is only neighbor of u
                     // so we need to update correlation
-                    
+
                     let xn = pg::graph::NodeIndex::new(*x);
                     let u_to_x_inner = og.find_edge(source_node, xn).unwrap();
                     let mut u_to_x_info_inner = og.edge_weight_mut(u_to_x_inner).unwrap();
-                    let curr_state = u_to_x_info_inner.state ;
+                    let curr_state = u_to_x_info_inner.state;
 
                     let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
-                    u_to_x_info_inner.infrv_gain = delta ;
+                    u_to_x_info_inner.infrv_gain = delta;
                     u_to_x_info_inner.state += 1;
 
                     // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x) {
-                        let (a,b) = if source > *x {(*x,source)} else {(source, *x)};
-                        assert!(a != b,"1. source = {}, target = {}, source = {}, target = {}",a,b,source,target);
-                        heap.push(EdgeState { infrv_gain: OrderedFloat(delta) , source: a, target: b, state: curr_state+1});
+                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
+                    {
+                        let (a, b) = if source > *x {
+                            (*x, source)
+                        } else {
+                            (source, *x)
+                        };
+                        assert!(
+                            a != b,
+                            "1. source = {}, target = {}, source = {}, target = {}",
+                            a,
+                            b,
+                            source,
+                            target
+                        );
+                        heap.push(EdgeState {
+                            infrv_gain: OrderedFloat(delta),
+                            source: a,
+                            target: b,
+                            state: curr_state + 1,
+                        });
                     }
-
                 }
 
-                // if there is v -- x but not 
-                // u -- x then we copy the properties 
+                // if there is v -- x but not
+                // u -- x then we copy the properties
                 // of v -- x into our new u*v -- x
-                for x in target_adj.iter(){
-                    if common_ids.contains(x){
+                for x in target_adj.iter() {
+                    if common_ids.contains(x) {
                         continue;
                     }
 
                     let xn = pg::graph::NodeIndex::new(*x);
                     let v_to_x_inner = og.find_edge(target_node, xn).unwrap();
                     let v_to_x_info_inner = og.edge_weight(v_to_x_inner).unwrap();
-                
-                    let v_to_x_count = v_to_x_info_inner.count ;
+
+                    let v_to_x_count = v_to_x_info_inner.count;
                     let v_to_x_eqlist = &v_to_x_info_inner.eqlist.to_vec();
 
                     let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
@@ -1117,30 +1199,55 @@ pub fn work_on_component(
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
                     let new_state = -1 as i32;
-                    
-                    og.add_edge(source_node, xn, EdgeInfo {infrv_gain: delta, count: v_to_x_count, 
-                        state: new_state, eqlist: v_to_x_eqlist.to_vec() });
-                    
+
+                    og.add_edge(
+                        source_node,
+                        xn,
+                        EdgeInfo {
+                            infrv_gain: delta,
+                            count: v_to_x_count,
+                            state: new_state,
+                            eqlist: v_to_x_eqlist.to_vec(),
+                        },
+                    );
+
                     // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x) {
-                        let (a,b) = if source > *x {(*x,source)} else {(source, *x)};
-                        assert!(a != b,"2. source = {}, target = {}, source = {}, target = {}",a,b,source,target);
-                        heap.push(EdgeState { infrv_gain: OrderedFloat(delta) , source: a, target: b, state: new_state});
+                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
+                    {
+                        let (a, b) = if source > *x {
+                            (*x, source)
+                        } else {
+                            (source, *x)
+                        };
+                        assert!(
+                            a != b,
+                            "2. source = {}, target = {}, source = {}, target = {}",
+                            a,
+                            b,
+                            source,
+                            target
+                        );
+                        heap.push(EdgeState {
+                            infrv_gain: OrderedFloat(delta),
+                            source: a,
+                            target: b,
+                            state: new_state,
+                        });
                     }
                     og.remove_edge(v_to_x_inner);
                 }
 
                 // it's a triangle
-                for x in common_ids.iter(){
+                for x in common_ids.iter() {
                     let xn = pg::graph::NodeIndex::new(*x);
-                    
+
                     // for the u - x edge
                     let u_to_x_inner = og.find_edge(source_node, xn).unwrap();
                     // for the v - x edge
                     let v_to_x_inner = og.find_edge(target_node, xn).unwrap();
 
-                    let v_to_x_count : u32;
-                    let v_to_x_eq : Vec::<usize>;
+                    let v_to_x_count: u32;
+                    let v_to_x_eq: Vec<usize>;
                     {
                         let v_to_x_info = og.edge_weight(v_to_x_inner).unwrap();
                         v_to_x_count = v_to_x_info.count;
@@ -1153,19 +1260,19 @@ pub fn work_on_component(
                     let intersecting_eqlist = intersect(&v_to_x_eq, &u_to_x_info.eqlist);
                     let curr_state = u_to_x_info.state;
 
-                    let mut sum = 0 as u32 ;
-                    for i in intersecting_eqlist.iter(){
-                        sum += eq_class_count[*i as usize] ;
+                    let mut sum = 0 as u32;
+                    for i in intersecting_eqlist.iter() {
+                        sum += eq_class_count[*i as usize];
                     }
                     let tot_current_count = v_to_x_count + u_to_x_info.count;
 
-                    // TODO(@hiraksarkar) : once confident, we can remove this check 
+                    // TODO(@hiraksarkar) : once confident, we can remove this check
                     if sum > tot_current_count {
                         println!("sum = {}, tot_current_count = {}", sum, tot_current_count);
-                        println!("u-x : {:?}, v-x : {:?}, intersection : {:?}", 
-                            u_to_x_info.eqlist, 
-                            v_to_x_eq, 
-                            intersecting_eqlist);
+                        println!(
+                            "u-x : {:?}, v-x : {:?}, intersection : {:?}",
+                            u_to_x_info.eqlist, v_to_x_eq, intersecting_eqlist
+                        );
                         std::process::exit(1);
                     }
 
@@ -1185,30 +1292,45 @@ pub fn work_on_component(
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
-                    u_to_x_info.infrv_gain = delta ;
+                    u_to_x_info.infrv_gain = delta;
                     u_to_x_info.count = final_count;
                     u_to_x_info.state += 1;
 
                     // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x){
-                        let (a, b) = if  source > *x {(*x,source)} else {(source, *x)};
-                        assert!(a != b,"3. a = {}, b = {}, source = {}, target = {}",a,b,source,target);
-                        heap.push(EdgeState { infrv_gain: OrderedFloat(delta) , source: a, target: b, state: curr_state+1});
+                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
+                    {
+                        let (a, b) = if source > *x {
+                            (*x, source)
+                        } else {
+                            (source, *x)
+                        };
+                        assert!(
+                            a != b,
+                            "3. a = {}, b = {}, source = {}, target = {}",
+                            a,
+                            b,
+                            source,
+                            target
+                        );
+                        heap.push(EdgeState {
+                            infrv_gain: OrderedFloat(delta),
+                            source: a,
+                            target: b,
+                            state: curr_state + 1,
+                        });
                     }
                     og.remove_edge(v_to_x_inner);
                 }
             }
-       }
-   }
-   //println!("curr state {}", curr_state);
-
+        }
+    }
+    //println!("curr state {}", curr_state);
 }
-
 
 pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Error> {
     //let start = Instant::now();
     let file = File::open(filename).unwrap();
-    let reader : Box<dyn Read> = if filename.ends_with("eq_classes.txt.gz") { 
+    let reader: Box<dyn Read> = if filename.ends_with("eq_classes.txt.gz") {
         Box::new(GzDecoder::new(file))
     } else {
         Box::new(file)

@@ -1,34 +1,37 @@
 use serde::{Deserialize, Serialize};
-use std::io::{BufReader};
 use std::fs::*;
-use std::path::PathBuf;
 use std::hash::Hash;
+use std::io::BufReader;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct FileList {
-    pub prefix : PathBuf,
+    pub prefix: PathBuf,
     pub quant_file: PathBuf,
-    pub bootstrap_file : PathBuf,
-    pub ambig_file : PathBuf,
-    pub mi_file : PathBuf,
-    pub eq_file : PathBuf,
-    pub names_tsv_file : PathBuf,
-    pub cmd_file : PathBuf,
-    pub collapsed_log_file : PathBuf,
-    pub group_file : PathBuf,
-    pub delta_file : PathBuf,
-    pub cluster_file : PathBuf,
+    pub bootstrap_file: PathBuf,
+    pub ambig_file: PathBuf,
+    pub mi_file: PathBuf,
+    pub eq_file: PathBuf,
+    pub names_tsv_file: PathBuf,
+    pub cmd_file: PathBuf,
+    pub collapsed_log_file: PathBuf,
+    pub group_file: PathBuf,
+    pub delta_file: PathBuf,
+    pub cluster_file: PathBuf,
 }
 
 // construct the files
 impl FileList {
-    pub fn new(dname : String) -> FileList {
+    pub fn new(dname: String) -> FileList {
         let dir = PathBuf::from(dname.clone());
         if !dir.as_path().exists() {
             panic!("The directory {} did not exist", dir.to_str().unwrap());
         }
         if !dir.as_path().is_dir() {
-            panic!("The path {} did not point to a valid directory", dir.to_str().unwrap());
+            panic!(
+                "The path {} did not point to a valid directory",
+                dir.to_str().unwrap()
+            );
         }
         let parent = dir.as_path().join("aux_info");
 
@@ -37,7 +40,7 @@ impl FileList {
         if mi_path.exists() {
             let file = File::open(mi_path);
             let reader = BufReader::new(file.unwrap());
-            let jd : MetaInfo = serde_json::from_reader(reader).unwrap();
+            let jd: MetaInfo = serde_json::from_reader(reader).unwrap();
 
             eq_name = if jd.eq_class_properties.contains(&"gzipped".to_string()) {
                 "eq_classes.txt.gz"
@@ -46,19 +49,19 @@ impl FileList {
             };
         }
 
-        FileList{
-            prefix : dir.clone(),
-            ambig_file : parent.join("ambig_info.tsv").to_path_buf(),
-            mi_file : parent.join("meta_info.json").to_path_buf(),
-            quant_file : dir.as_path().join("quant.sf").to_path_buf(),
-            eq_file : parent.join(eq_name).to_path_buf(),
-            bootstrap_file : parent.join("bootstrap").join("bootstraps.gz").to_path_buf(),
-            names_tsv_file : parent.join("bootstrap").join("names.tsv.gz").to_path_buf(),
-            cmd_file : dir.as_path().join("cmd_info.json"),
-            cluster_file : dir.as_path().join("clusters.txt"),
-            collapsed_log_file : dir.as_path().join("collapsed.log").to_path_buf(),
-            group_file : dir.as_path().join("groups.txt"),
-            delta_file : dir.as_path().join("delta.log"),
+        FileList {
+            prefix: dir.clone(),
+            ambig_file: parent.join("ambig_info.tsv").to_path_buf(),
+            mi_file: parent.join("meta_info.json").to_path_buf(),
+            quant_file: dir.as_path().join("quant.sf").to_path_buf(),
+            eq_file: parent.join(eq_name).to_path_buf(),
+            bootstrap_file: parent.join("bootstrap").join("bootstraps.gz").to_path_buf(),
+            names_tsv_file: parent.join("bootstrap").join("names.tsv.gz").to_path_buf(),
+            cmd_file: dir.as_path().join("cmd_info.json"),
+            cluster_file: dir.as_path().join("clusters.txt"),
+            collapsed_log_file: dir.as_path().join("collapsed.log").to_path_buf(),
+            group_file: dir.as_path().join("groups.txt"),
+            delta_file: dir.as_path().join("delta.log"),
         }
     }
 }
@@ -66,23 +69,23 @@ impl FileList {
 #[derive(PartialEq, Eq, Hash, Clone, Debug, Default)]
 pub struct TranscriptInfo {
     pub eqlist: Vec<usize>,
-    pub weights: Vec<i32>
+    pub weights: Vec<i32>,
 }
 
-impl TranscriptInfo{
+impl TranscriptInfo {
     pub fn new() -> TranscriptInfo {
         TranscriptInfo {
-            eqlist : Vec::<usize>::new(),
-            weights : Vec::<i32>::new()
+            eqlist: Vec::<usize>::new(),
+            weights: Vec::<i32>::new(),
         }
     }
 }
 
 pub struct EdgeInfo {
-    pub infrv_gain : f64,
-    pub count : u32,
-    pub state : i32,
-    pub eqlist : Vec<usize>
+    pub infrv_gain: f64,
+    pub count: u32,
+    pub state: i32,
+    pub eqlist: Vec<usize>,
 }
 
 #[derive(Debug, Default)]
@@ -153,7 +156,6 @@ pub struct EqClassExperiment {
     pub classes: EqList,
 }
 
-
 impl EqClassExperiment {
     /// Add an equivalence class to the set of equivalence classes for this experiment
     ///
@@ -216,7 +218,6 @@ pub struct TxpRecord {
 //}
 
 impl TxpRecord {
-
     // pub fn iter(&self) -> IterTxpRecord {
     //     IterTxpRecord {
     //         inner: self,
@@ -224,7 +225,7 @@ impl TxpRecord {
     //     }
     // }
 
-    pub fn assign(&mut self, other : &TxpRecord) {
+    pub fn assign(&mut self, other: &TxpRecord) {
         self.Name = other.Name.clone();
         self.Length = other.Length;
         self.EffectiveLength = other.EffectiveLength;
@@ -234,11 +235,11 @@ impl TxpRecord {
 
     pub fn new() -> TxpRecord {
         TxpRecord {
-            Name : "".to_string(),
-            Length : 0u32,
-            EffectiveLength : 0.0f32,
-            TPM : 0.0f32,
-            NumReads : 0.0f32,
+            Name: "".to_string(),
+            Length: 0u32,
+            EffectiveLength: 0.0f32,
+            TPM: 0.0f32,
+            NumReads: 0.0f32,
         }
     }
 }
@@ -252,7 +253,7 @@ impl Default for TxpRecord {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TerminusInfo {
     pub num_nontrivial_groups: usize,
-    pub num_targets_in_nontrivial_group: usize
+    pub num_targets_in_nontrivial_group: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
