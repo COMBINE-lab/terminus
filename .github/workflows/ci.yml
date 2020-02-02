@@ -68,7 +68,7 @@ jobs:
 
       - name: GSL for linux
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install libgsl libgsl-dev
+        run: sudo apt-get install libgsl-dev
           
   lints:
     name: Lints
