@@ -56,9 +56,12 @@ jobs:
 
       - name: GSL for mac
         if: matrix.os == 'macos-latest'
-        uses: artemnovichkov/action-homebrew@0.1.0
-        with:
-          command: sudo brew install gsl     
+        run: |
+          wget ftp://ftp.gnu.org/gnu/gsl/gsl-2.6.tar.gz
+          tar xzf gsl-2.6.tar.gz
+          cd gsl-2.6
+          ./configure && make
+          make install    
 
       - name: GSL for linux
         if: matrix.os == 'ubuntu-latest'
