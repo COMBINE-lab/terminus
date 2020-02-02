@@ -346,7 +346,7 @@ pub fn group_reader(filename: &std::path::Path) -> Vec<Vec<usize>> {
 
         groups.push(group.clone());
     }
-    (groups)
+    groups
 }
 
 // normal variance
@@ -377,7 +377,7 @@ fn spread1d(a: ArrayView1<'_, f64>) -> f64 {
     let mean = a.sum() / n;
     let minimum = a.fold(f64::INFINITY, |m, &x| m.min(x));
     let maximum = a.fold(-f64::INFINITY, |m: f64, &x| m.max(x));
-    ((maximum - minimum) / mean)
+    (maximum - minimum) / mean
 }
 
 fn infrv(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
