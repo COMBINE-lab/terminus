@@ -22,7 +22,7 @@ transcriptome analysis.
 How to build terminus
 ---------------------
 
-Terminus uses the [cargo])(https://github.com/rust-lang/cargo) build system and package manager.  To build terminus from source, you will need to have rust (ideally v1.40 or greater) installed.  Then, you can build terminus by executing:
+Terminus uses the [cargo](https://github.com/rust-lang/cargo) build system and package manager.  To build terminus from source, you will need to have rust (ideally v1.40 or greater) installed.  Then, you can build terminus by executing:
 
 ```
 $ cargo build --release
