@@ -78,7 +78,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let compo: Vec<&str> = dname.rsplit('/').collect();
     //println!("{:?}",compo);
     let experiment_name = compo[0];
-    let mut prefix_path = prefix.clone();
+    let mut prefix_path = prefix;
     prefix_path.push_str("/");
     prefix_path.push_str(experiment_name);
     let file_list = salmon_types::FileList::new(dname.to_string());
@@ -87,7 +87,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     println!("output folder {}", prefix_path);
     // create
     create_dir_all(prefix_path.clone())?;
-    let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
+    let file_list_out = salmon_types::FileList::new(prefix_path);
 
     // Load the gibbs samples
     let x = util::parse_json(&file_list.mi_file).unwrap();
@@ -190,7 +190,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     );
     //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
     let mut gfile =
-        File::create(file_list_out.group_file.clone()).expect("could not create groups.txt");
+        File::create(file_list_out.group_file).expect("could not create groups.txt");
     let _write = util::group_writer(&mut gfile, &groups);
 
     Ok(true)
@@ -226,7 +226,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
         //let groups = util::group_reader(&file_list_out.group_file);
         if global_graph.node_count() == 0 {
-            let file_list = salmon_types::FileList::new(dname.to_string());
+            let file_list = salmon_types::FileList::new((*dname).to_string());
             let x = util::parse_json(&file_list.mi_file).unwrap();
 
             for i in 0..x.num_valid_targets {
