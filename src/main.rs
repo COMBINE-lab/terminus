@@ -222,7 +222,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         prefix_path.push_str("/");
         prefix_path.push_str(experiment_name);
         create_dir_all(prefix_path.clone())?;
-        let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
+        let file_list_out = salmon_types::FileList::new(prefix_path);
 
         //let groups = util::group_reader(&file_list_out.group_file);
         if global_graph.node_count() == 0 {

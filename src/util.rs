@@ -438,7 +438,7 @@ pub fn get_threhold(gibbs_mat: &Array2<f64>, infrv_quant: f64, file_list: &FileL
     std::fs::write(infrv_log, dat).expect("could not write to the infrv.log");
 
     let die_roll_log = file_list.prefix.as_path().join("die_roll.log");
-    let mut dfile = File::create(die_roll_log.clone()).expect("could not create die roll.log");
+    let mut dfile = File::create(die_roll_log).expect("could not create die roll.log");
     // let infrv_array = variance(&gibbs_mat, Axis(1));
     let mut converged = false;
     let starting_num_samples = (gibbs_nz.len() as f64) * 1.;

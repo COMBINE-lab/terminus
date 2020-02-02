@@ -23,7 +23,7 @@ pub struct FileList {
 // construct the files
 impl FileList {
     pub fn new(dname: String) -> FileList {
-        let dir = PathBuf::from(dname.clone());
+        let dir = PathBuf::from(dname);
         if !dir.as_path().exists() {
             panic!("The directory {} did not exist", dir.to_str().unwrap());
         }
