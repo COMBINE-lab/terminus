@@ -26,9 +26,7 @@ fn terminus_collapse() -> Result<(), Box<dyn std::error::Error>> {
     cmd.args(&["-d", "tests/data/salmon_quant/quant_1"]);
     cmd.args(&["-c", "0.25"]);
     cmd.args(&["-o", "tests/data/terminus_group"]);
-    
     cmd.assert().success();
 
     Ok(())
 }
-

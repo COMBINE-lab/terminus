@@ -26,8 +26,6 @@ extern crate pretty_env_logger;
 extern crate rayon;
 extern crate refinery;
 
-extern crate  assert_cmd;
-
 pub mod salmon_types;
 mod util;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
@@ -138,7 +136,6 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // thr = 0.645;
     println!("threshold: {}", thr);
     //let dpath = Path::new(file_list_out.delta_file.clone());
-    
     let mut dfile =
         File::create(file_list_out.delta_file.clone()).expect("could not create collapse.log");
     let mut unionfind_struct = UnionFind::new(eq_class.ntarget);

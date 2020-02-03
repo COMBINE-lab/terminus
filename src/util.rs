@@ -23,8 +23,8 @@ use ordered_float::*;
 use petgraph::unionfind::UnionFind;
 use rand::distributions::{Distribution, Uniform};
 //use rand::thread_rng;
-use rand_core::{SeedableRng};
-use rand_pcg::{Pcg64};
+use rand_core::SeedableRng;
+use rand_pcg::Pcg64;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
@@ -417,10 +417,10 @@ fn variance(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
 */
 
 pub fn get_threhold(
-    gibbs_mat: &Array2<f64>, 
+    gibbs_mat: &Array2<f64>,
     infrv_quant: f64,
-    seed: u64, 
-    file_list: &FileList
+    seed: u64,
+    file_list: &FileList,
 ) -> f64 {
     println!("Calculating threhold");
     let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1));
