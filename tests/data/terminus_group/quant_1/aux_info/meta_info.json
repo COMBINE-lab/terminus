@@ -1,0 +1,12 @@
+{
+  "num_valid_targets": 44,
+  "serialized_eq_classes": true,
+  "num_bootstraps": 100,
+  "num_eq_classes": 82,
+  "eq_class_properties": [
+    "range_factorized",
+    "scalar_weights",
+    "gzipped"
+  ],
+  "samp_type": "gibbs"
+}
