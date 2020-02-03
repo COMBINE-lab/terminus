@@ -1,0 +1,10 @@
+{
+    "salmon_version": "1.2.0",
+    "libType": "a",
+    "index": "test/dmel_toy_salmon_idx",
+    "unmatedReads": "../ASE_Analysis/drosophila/GSM461176/GSM461176.fastq.gz",
+    "numGibbsSamples": "100",
+    "dumpEqWeights": [],
+    "output": "test/quant_1",
+    "auxDir": "aux_info"
+}
