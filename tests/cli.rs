@@ -7,8 +7,9 @@ use assert_cmd::prelude::*;
 fn terminus_collapse() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("terminus")?;
     cmd.arg("collapse");
-    cmd.args(&["--dirs", "tests/data/???"]);
-
+    cmd.args(&["-d", "tests/data/salmon_quant/quant_1"]);
+    cmd.args(&["-c", "0.25"]);
+    cmd.args(&["-o", "tests/terminus_out"]);
     cmd.assert().success();
 
     Ok(())
@@ -18,7 +19,10 @@ fn terminus_collapse() -> Result<(), Box<dyn std::error::Error>> {
 fn terminus_group() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("terminus")?;
     cmd.arg("group");
-    cmd.args(&["--dir", "tests/data/???"]);
+    cmd.args(&["-d", "tests/data/salmon_quant/quant_1"]);
+    cmd.args(&["-m", "0.05"]);
+    cmd.args(&["--tolerance", "0.01"]);
+    cmd.args(&["-o", "tests/terminus_out"]);
 
     cmd.assert().success();
 
