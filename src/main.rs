@@ -10,6 +10,8 @@ extern crate ndarray;
 extern crate ndarray_stats;
 extern crate petgraph;
 extern crate rand;
+extern crate rand_core;
+extern crate rand_pcg;
 extern crate serde;
 extern crate serde_json;
 
@@ -71,49 +73,11 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // let mut meta_info_array = Vec::<salmon_types::MetaInfo>::with_capacity(dir_paths.len());
     // let mut num_global_targrts = 0u32 ;
 
-    println!("{}", &prefix);
-
-    println!("dir : {}", dname);
-
-    let compo: Vec<&str> = dname.rsplit('/').collect();
-    //println!("{:?}",compo);
-    let experiment_name = compo[0];
-    let mut prefix_path = prefix;
-    prefix_path.push_str("/");
-    prefix_path.push_str(experiment_name);
-    let file_list = salmon_types::FileList::new(dname.to_string());
-
-    // create output directory
-    println!("output folder {}", prefix_path);
-    // create
-    create_dir_all(prefix_path.clone())?;
-    let file_list_out = salmon_types::FileList::new(prefix_path);
-
-    // Load the gibbs samples
-    let x = util::parse_json(&file_list.mi_file).unwrap();
-
-    let mut gibbs_array =
-        Array2::<f64>::zeros((x.num_valid_targets as usize, x.num_bootstraps as usize));
-    util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
-    let mut gibbs_mat_mean = gibbs_array.mean_axis(Axis(1)).unwrap();
-
-    let eq_class = util::parse_eq(&file_list.eq_file).unwrap();
-    println!("length of eqclass {:?}", eq_class.neq);
-    let mut eq_class_counts = vec![0 as u32; eq_class.neq];
-    let mut i = 0 as usize;
-    for eq in eq_class.classes.iter() {
-        eq_class_counts[i] = eq.2;
-        i += 1;
-    }
-
-    let inf_perc = 0.25f64;
-    let p = util::get_infrv_percentile(&gibbs_array, inf_perc);
-    println!("the {}% of infRV was : {}", inf_perc * 100., p);
-    let thr = util::get_threhold(&gibbs_array, p, &file_list_out);
-    // thr = thr * 0.75;
-    // thr = 0.645;
-    println!("threshold: {}", thr);
-    //let dpath = Path::new(file_list_out.delta_file.clone());
+    let seed = sub_m
+        .value_of("seed")
+        .unwrap()
+        .parse::<u64>()
+        .expect("generate random values from the seed");
     let min_spread = sub_m
         .value_of("min-spread")
         .unwrap()
@@ -126,6 +90,53 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .parse::<f64>()
         .expect("could not convert tolerance to float value");
 
+    println!("------input configuration------");
+    println!("seed : {}", seed);
+    println!("min-spread : {}", min_spread);
+    println!("tolerance : {}", tolerance);
+    println!("dir : {}", dname);
+    let compo: Vec<&str> = dname.rsplit('/').collect();
+    //println!("{:?}",compo);
+    let experiment_name = compo[0];
+    let mut prefix_path = prefix;
+    prefix_path.push_str("/");
+    prefix_path.push_str(experiment_name);
+    let file_list = salmon_types::FileList::new(dname.to_string());
+
+    // create output directory
+    println!("output folder: {}", prefix_path);
+    println!("------------------------------");
+    // create
+    create_dir_all(prefix_path.clone())?;
+    let file_list_out = salmon_types::FileList::new(prefix_path);
+
+    // Load the gibbs samples
+    let x = util::parse_json(&file_list.mi_file).unwrap();
+
+    let mut gibbs_array =
+        Array2::<f64>::zeros((x.num_valid_targets as usize, x.num_bootstraps as usize));
+    util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
+    let mut gibbs_mat_mean = gibbs_array.mean_axis(Axis(1)).unwrap();
+
+    println!("parsing eqfile {:?}", file_list.eq_file);
+    let eq_class = util::parse_eq(&file_list.eq_file).unwrap();
+    println!("length of eqclass {:?}", eq_class.neq);
+    let mut eq_class_counts = vec![0 as u32; eq_class.neq];
+    let mut i = 0 as usize;
+    for eq in eq_class.classes.iter() {
+        eq_class_counts[i] = eq.2;
+        i += 1;
+    }
+
+    let inf_perc = 0.25f64;
+    let p = util::get_infrv_percentile(&gibbs_array, inf_perc);
+    println!("the {}% of infRV was : {}", inf_perc * 100., p);
+    let thr = util::get_threhold(&gibbs_array, p, seed, &file_list_out);
+    // thr = thr * 0.75;
+    // thr = 0.645;
+    println!("threshold: {}", thr);
+    //let dpath = Path::new(file_list_out.delta_file.clone());
+    
     let mut dfile =
         File::create(file_list_out.delta_file.clone()).expect("could not create collapse.log");
     let mut unionfind_struct = UnionFind::new(eq_class.ntarget);
@@ -384,6 +395,14 @@ fn main() -> io::Result<()> {
                     .long("tolerance")
                     .takes_value(true)
                     .default_value("0.001")
+                    .help("The allowable difference between the weights of transcripts \
+                          in same equivalence classes to treat them as identical")
+            )
+            .arg(
+                Arg::with_name("seed")
+                    .long("seed")
+                    .takes_value(true)
+                    .default_value("10")
                     .help("The allowable difference between the weights of transcripts \
                           in same equivalence classes to treat them as identical")
             )

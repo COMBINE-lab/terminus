@@ -23,6 +23,8 @@ use ordered_float::*;
 use petgraph::unionfind::UnionFind;
 use rand::distributions::{Distribution, Uniform};
 use rand::thread_rng;
+use rand_core::{RngCore, SeedableRng};
+use rand_pcg::{Pcg64};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
@@ -414,7 +416,12 @@ fn variance(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
 }
 */
 
-pub fn get_threhold(gibbs_mat: &Array2<f64>, infrv_quant: f64, file_list: &FileList) -> f64 {
+pub fn get_threhold(
+    gibbs_mat: &Array2<f64>, 
+    infrv_quant: f64,
+    seed: u64, 
+    file_list: &FileList
+) -> f64 {
     println!("Calculating threhold");
     let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1));
     let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
@@ -448,9 +455,11 @@ pub fn get_threhold(gibbs_mat: &Array2<f64>, infrv_quant: f64, file_list: &FileL
 
     let mut old_threshold = 0.0 as f64;
     let mut new_threshold = 0.0 as f64;
+
+    // let mut rng = thread_rng();
+    let mut rng = Pcg64::seed_from_u64(seed);
     while !converged {
         //starting_num_samples < gibbs_nz.len(){
-        let mut rng = thread_rng();
         let die_range = Uniform::new(0, gibbs_nz.len());
         let mut roll_die = die_range.sample_iter(&mut rng);
 
@@ -1329,7 +1338,7 @@ pub fn work_on_component(
 
 pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Error> {
     //let start = Instant::now();
-    let file = File::open(filename).unwrap();
+    let file = File::open(filename).expect("equivalence class file does not exist");
     let reader: Box<dyn Read> = if filename.ends_with("eq_classes.txt.gz") {
         Box::new(GzDecoder::new(file))
     } else {
