@@ -26,6 +26,8 @@ extern crate pretty_env_logger;
 extern crate rayon;
 extern crate refinery;
 
+extern crate  assert_cmd;
+
 pub mod salmon_types;
 mod util;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
