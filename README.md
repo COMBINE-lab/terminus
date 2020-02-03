@@ -36,3 +36,8 @@ How to use terminus
 -------------------
 
 Terminus has two sub-commands, `group` and `collapse`.
+
+Authors
+-------
+
+Hirak Sarkar, Avi Srivastava, H&egrave;ctor Corrada Bravo, Michael I. Love, Rob Patro
