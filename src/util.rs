@@ -1,33 +1,35 @@
-use byteorder::{ByteOrder, LittleEndian};
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use itertools::Itertools;
-use ndarray::prelude::*;
-use petgraph as pg;
-use refinery::Partition;
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
+use std::f64;
 use std::fs::*;
 use std::io::prelude::*;
 use std::io::{self, BufReader, BufWriter};
 use std::time::Instant;
 //use std::num::pow::pow;
-//use rgsl::statistics::correlation;
-
-use std::f64;
 //use std::collections::BinaryHeap;
-use crate::petgraph::visit::EdgeRef;
-use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
+
 use binary_heap_plus::*;
+use byteorder::{ByteOrder, LittleEndian};
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use itertools::Itertools;
+use nalgebra as na;
+use ndarray::prelude::*;
 use num_traits::cast::ToPrimitive;
 use ordered_float::*;
+use petgraph as pg;
 use petgraph::unionfind::UnionFind;
+use petgraph::visit::EdgeRef;
 use rand::distributions::{Distribution, Uniform};
-//use rand::thread_rng;
 use rand_core::SeedableRng;
 use rand_pcg::Pcg64;
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
-use std::convert::TryInto;
+use refinery::Partition;
+//use rand::thread_rng;
+//use rgsl::statistics::correlation;
+
+use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
 
 // General functions to r/w files
 // files to be handled

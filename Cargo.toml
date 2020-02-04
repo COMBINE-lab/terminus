@@ -1,7 +1,8 @@
 [package]
 name = "terminus"
 version = "0.1.0"
-authors = ["<{rob,hirak}@cs.umd.edu>"]
+authors = ["Rob Patro <rob@cs.umd.edu>", "Hirak Sarkar <hirak@cs.umd.edu>"]
+edition = "2018"
 
 [dependencies]
 GSL = "*"
