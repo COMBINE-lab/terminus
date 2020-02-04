@@ -317,6 +317,27 @@ pub fn read_gibbs_array(f: &std::path::Path, mi: &MetaInfo, gibbs_mat: &mut Arra
 }
 
 #[allow(dead_code)]
+pub fn get_active_transcripts(filename: &std::path::Path, length : usize ) -> Vec<bool> {
+    let file = File::open(filename).unwrap();
+    let buf_reader = BufReader::new(file);
+
+    let mut active_transcripts = vec![false ; length];
+
+    for (i, l) in buf_reader.lines().skip(1).enumerate() {
+        let s = l.unwrap();
+        let mut iter = s.split_ascii_whitespace();
+        let u: u32 = iter.next().unwrap().parse().unwrap();
+        let a: u32 = iter.next().unwrap().parse().unwrap();
+        if u != 0 || a != 0 {
+            active_transcripts[i] = true;
+        }else {
+            active_transcripts[i] = false;
+        }
+    }
+    active_transcripts
+}
+
+#[allow(dead_code)]
 pub fn get_ambig(filename: &std::path::Path) -> Vec<u32> {
     let file = File::open(filename).unwrap();
     let buf_reader = BufReader::new(file);

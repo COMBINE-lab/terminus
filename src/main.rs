@@ -224,6 +224,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut global_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
 
     // add edges
+
     for (_, dname) in dir_paths.iter().enumerate() {
         let compo: Vec<&str> = dname.rsplit('/').collect();
         let experiment_name = compo[0];
@@ -233,6 +234,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         prefix_path.push_str(experiment_name);
         create_dir_all(prefix_path.clone())?;
         let file_list_out = salmon_types::FileList::new(prefix_path);
+        //let file_list = salmon_types::FileList::new(dname.to_string());
 
         //let groups = util::group_reader(&file_list_out.group_file);
         if global_graph.node_count() == 0 {
@@ -281,13 +283,41 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         } // all lines of the file
     } // all files
 
+    // write the graph
+    let mut graph_file = File::create("graph.txt").unwrap();
+    for edge in global_graph.raw_edges() {
+        graph_file.write_all(
+            format!(
+                "{}\t{}\t{}\n",edge.source().index(), edge.target().index(), edge.weight
+            ).as_bytes()
+        )?;
+    }
+
+    // globally active
+    let mut global_active_transcripts : std::vec::Vec<bool> = vec![false; global_graph.node_count()];
+    let mut first_sample = true;
+    for (_, dname) in dir_paths.iter().enumerate() {
+        let file_list = salmon_types::FileList::new(dname.to_string());
+        let active_list = util::get_active_transcripts(&file_list.ambig_file, global_graph.node_count());
+        if first_sample{
+            for (i,t) in active_list.iter().enumerate(){
+                global_active_transcripts[i] = *t ;
+            }
+            first_sample = false;
+        }else{
+            for (i,t) in active_list.iter().enumerate(){
+                global_active_transcripts[i] = global_active_transcripts[i] & *t ;
+            }
+        }
+    } 
+
     // filter
-    let _consensus_thresh = sub_m
+    let consensus_thresh = sub_m
         .value_of("consensus-thresh")
         .unwrap()
         .parse::<f64>()
         .expect("could not parse --consensus-thresh option");
-    //let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
+    let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
 
     // components
     //let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
@@ -298,64 +328,76 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
 
     // check the change of convergence dynamically
-    let mut final_num_comp = if dir_paths.len() == 1 { 1 } else { 2 };
+    // let mut final_num_comp = if dir_paths.len() == 1 { 1 } else { 2 };
 
-    if dir_paths.len() > 3 {
-        let mut component_sizes: Vec<usize> = Vec::with_capacity(dir_paths.len());
-        for i in 2..=dir_paths.len() {
-            let global_filtered_graph = global_graph.filter_map(
-                |_, n| Some(*n),
-                |_, &e| {
-                    if (e as usize) >= i {
-                        Some(e)
-                    } else {
-                        None
-                    }
-                },
-            );
-            let comps_tmp: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
-            let (total_in_group, _num_group) = comps_tmp.iter().fold((0, 0), |s, v| {
-                if v.len() > 1 {
-                    (s.0 + v.len(), s.1 + 1)
-                } else {
-                    (s.0, s.1)
-                }
-            });
-            // let comp_size = connected_components(&global_filtered_graph);
-            println!(
-                "With consensus {} number of components {}",
-                i, total_in_group
-            );
-            component_sizes.push(total_in_group);
-        }
-        let mut size_diff: Vec<i32> = Vec::with_capacity(component_sizes.len() - 1);
-        for i in 1..component_sizes.len() {
-            size_diff.push((component_sizes[i] - component_sizes[i - 1]) as i32);
-        }
-        println!("{:?}", size_diff);
-        let ind: Option<usize> = size_diff
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-            .map(|(index, _)| index);
+    // if dir_paths.len() > 3 {
+    //     let mut component_sizes: Vec<usize> = Vec::with_capacity(dir_paths.len());
+    //     for i in 2..=dir_paths.len() {
+    //         let global_filtered_graph = global_graph.filter_map(
+    //             |_, n| Some(*n),
+    //             |_, &e| {
+    //                 if (e as usize) >= i {
+    //                     Some(e)
+    //                 } else {
+    //                     None
+    //                 }
+    //             },
+    //         );
+    //         let comps_tmp: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
+    //         let (total_in_group, _num_group) = comps_tmp.iter().fold((0, 0), |s, v| {
+    //             if v.len() > 1 {
+    //                 (s.0 + v.len(), s.1 + 1)
+    //             } else {
+    //                 (s.0, s.1)
+    //             }
+    //         });
+    //         // let comp_size = connected_components(&global_filtered_graph);
+    //         println!(
+    //             "With consensus {} number of components {}",
+    //             i, total_in_group
+    //         );
+    //         component_sizes.push(total_in_group);
+    //     }
+    //     let mut size_diff: Vec<i32> = Vec::with_capacity(component_sizes.len() - 1);
+    //     for i in 1..component_sizes.len() {
+    //         size_diff.push((component_sizes[i] - component_sizes[i - 1]) as i32);
+    //     }
+    //     println!("{:?}", size_diff);
+    //     let ind: Option<usize> = size_diff
+    //         .iter()
+    //         .enumerate()
+    //         .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+    //         .map(|(index, _)| index);
 
-        let mut result = ind.unwrap();
-        if result < size_diff.len() - 1 {
-            result += result;
-        }
-        final_num_comp = result + 2;
-    }
+    //     let mut result = ind.unwrap();
+    //     if result < size_diff.len() - 1 {
+    //         result += result;
+    //     }
+    //     final_num_comp = result + 2;
+    // }
 
-    let global_filtered_graph = global_graph.filter_map(
-        |_, n| Some(*n),
-        |_, &e| {
-            if (e as usize) >= final_num_comp {
+    let global_filtered_graph = global_graph.filter_map( 
+        |_ni, n| Some(*n),
+        |ei, e| {
+            let (a, b) = global_graph.edge_endpoints(ei).unwrap();
+            if global_active_transcripts[a.index()] && global_active_transcripts[b.index()] && (*e as usize) >= half_length{
                 Some(e)
             } else {
                 None
             }
-        },
+        }
     );
+
+    // let global_filtered_graph = global_graph.filter_map(
+    //     |_, n| Some(*n),
+    //     |_, &e| {
+    //         if (e as usize) >= final_num_comp {
+    //             Some(e)
+    //         } else {
+    //             None
+    //         }
+    //     },
+    // );
 
     let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
     comps.sort_by(|v, w| v.len().cmp(&w.len()));
