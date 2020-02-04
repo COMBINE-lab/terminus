@@ -40,6 +40,7 @@ use std::fs::*;
 use std::io::Write;
 use std::io::{self, BufRead, BufReader};
 use std::process;
+use std::cmp::Ordering;
 // Name of the program, to be used in diagnostic messages.
 static PROGRAM_NAME: &str = "terminus";
 
@@ -286,20 +287,79 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .unwrap()
         .parse::<f64>()
         .expect("could not parse --consensus-thresh option");
-    let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
+    //let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
+
+    // components
+    //let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
+    // filter
+    let consensus_thresh = sub_m.value_of("consensus-thresh").unwrap().parse::<f64>()
+                            .expect("could not parse --consensus-thresh option"); 
+    // let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
+
+    // check the change of convergence dynamically
+    let mut final_num_comp = 2usize;
+    // filter
+    let consensus_thresh = sub_m.value_of("consensus-thresh").unwrap().parse::<f64>()
+                            .expect("could not parse --consensus-thresh option"); 
+    // let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
+
+    // check the change of convergence dynamically
+    let mut final_num_comp = 2usize;
+
+    if dir_paths.len() > 3{
+        let mut component_sizes : Vec<usize> = Vec::with_capacity(dir_paths.len());
+        for i in 2..(dir_paths.len() +1){
+            let global_filtered_graph = global_graph.filter_map(
+                |_, n| Some(*n),
+                |_, &e| {
+                    if (e as usize)  >= i{
+                        Some(e)
+                    } else {
+                        None
+                    }
+                }
+            );
+            let comps_tmp: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
+            let (total_in_group, num_group) = comps_tmp.iter().fold((0, 0), |s, v| {
+                if v.len() > 1 {
+                    (s.0 + v.len(), s.1 + 1)
+                } else {
+                    (s.0, s.1)
+                }
+            });
+            // let comp_size = connected_components(&global_filtered_graph);
+            println!("With consensus {} number of components {}", i, total_in_group);
+            component_sizes.push(total_in_group);
+        }
+        let mut size_diff : Vec<i32> = Vec::with_capacity(component_sizes.len() - 1);
+        for i in 1..component_sizes.len(){
+            size_diff.push((component_sizes[i] - component_sizes[i-1]) as i32) ;
+        }
+        println!("{:?}", size_diff);
+        let ind: Option<usize> = size_diff
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+            .map(|(index, _)| index);
+        
+        let mut result = ind.unwrap() ;
+        if result < size_diff.len() - 1{
+            result = result + 1;
+        }
+        final_num_comp = result + 2;
+    }
 
     let global_filtered_graph = global_graph.filter_map(
         |_, n| Some(*n),
         |_, &e| {
-            if (e as usize) >= half_length {
+            if (e as usize)  >= final_num_comp{
                 Some(e)
             } else {
                 None
             }
-        },
+        }
     );
 
-    // components
     let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
     comps.sort_by(|v, w| v.len().cmp(&w.len()));
     // write a json file containing
