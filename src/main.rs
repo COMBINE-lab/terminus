@@ -298,16 +298,11 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
 
     // check the change of convergence dynamically
-    let mut final_num_comp: usize;
-    if dir_paths.len() == 1 {
-        final_num_comp = 1;
-    } else {
-        final_num_comp = 2;
-    }
+    let mut final_num_comp = if dir_paths.len() == 1 { 1 } else { 2 };
 
     if dir_paths.len() > 3 {
         let mut component_sizes: Vec<usize> = Vec::with_capacity(dir_paths.len());
-        for i in 2..(dir_paths.len() + 1) {
+        for i in 2..=dir_paths.len() {
             let global_filtered_graph = global_graph.filter_map(
                 |_, n| Some(*n),
                 |_, &e| {
@@ -346,7 +341,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
         let mut result = ind.unwrap();
         if result < size_diff.len() - 1 {
-            result = result + 1;
+            result += result;
         }
         final_num_comp = result + 2;
     }
