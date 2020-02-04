@@ -288,28 +288,33 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for edge in global_graph.raw_edges() {
         graph_file.write_all(
             format!(
-                "{}\t{}\t{}\n",edge.source().index(), edge.target().index(), edge.weight
-            ).as_bytes()
+                "{}\t{}\t{}\n",
+                edge.source().index(),
+                edge.target().index(),
+                edge.weight
+            )
+            .as_bytes(),
         )?;
     }
 
     // globally active
-    let mut global_active_transcripts : std::vec::Vec<bool> = vec![false; global_graph.node_count()];
+    let mut global_active_transcripts: std::vec::Vec<bool> = vec![false; global_graph.node_count()];
     let mut first_sample = true;
     for (_, dname) in dir_paths.iter().enumerate() {
         let file_list = salmon_types::FileList::new(dname.to_string());
-        let active_list = util::get_active_transcripts(&file_list.ambig_file, global_graph.node_count());
-        if first_sample{
-            for (i,t) in active_list.iter().enumerate(){
-                global_active_transcripts[i] = *t ;
+        let active_list =
+            util::get_active_transcripts(&file_list.ambig_file, global_graph.node_count());
+        if first_sample {
+            for (i, t) in active_list.iter().enumerate() {
+                global_active_transcripts[i] = *t;
             }
             first_sample = false;
-        }else{
-            for (i,t) in active_list.iter().enumerate(){
-                global_active_transcripts[i] = global_active_transcripts[i] & *t ;
+        } else {
+            for (i, t) in active_list.iter().enumerate() {
+                global_active_transcripts[i] = global_active_transcripts[i] & *t;
             }
         }
-    } 
+    }
 
     // filter
     let consensus_thresh = sub_m
@@ -376,16 +381,19 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     //     final_num_comp = result + 2;
     // }
 
-    let global_filtered_graph = global_graph.filter_map( 
+    let global_filtered_graph = global_graph.filter_map(
         |_ni, n| Some(*n),
         |ei, e| {
             let (a, b) = global_graph.edge_endpoints(ei).unwrap();
-            if global_active_transcripts[a.index()] && global_active_transcripts[b.index()] && (*e as usize) >= half_length{
+            if global_active_transcripts[a.index()]
+                && global_active_transcripts[b.index()]
+                && (*e as usize) >= half_length
+            {
                 Some(e)
             } else {
                 None
             }
-        }
+        },
     );
 
     // let global_filtered_graph = global_graph.filter_map(
