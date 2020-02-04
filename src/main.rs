@@ -1,33 +1,12 @@
-extern crate clap;
-extern crate csv;
-extern crate flate2;
-extern crate indicatif;
-extern crate itertools;
-extern crate log;
-extern crate log4rs;
-extern crate nalgebra as na;
-extern crate ndarray;
-extern crate ndarray_stats;
-extern crate petgraph;
-extern crate rand;
-extern crate rand_core;
-extern crate rand_pcg;
-extern crate serde;
-extern crate serde_json;
-
-extern crate byteorder;
-extern crate rgsl;
-
-extern crate binary_heap_plus;
-extern crate num_format;
-extern crate num_traits;
-extern crate ordered_float;
-extern crate pretty_env_logger;
-extern crate rayon;
-extern crate refinery;
-
 pub mod salmon_types;
 mod util;
+
+use std::collections::HashMap;
+use std::fs::*;
+use std::io::Write;
+use std::io::{self, BufRead, BufReader};
+use std::process;
+
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use ndarray::prelude::*;
 use num_format::{Locale, ToFormattedString};
@@ -35,11 +14,7 @@ use petgraph as pg;
 use petgraph::algo::{connected_components, tarjan_scc};
 use petgraph::unionfind::UnionFind;
 use rayon::prelude::*;
-use std::collections::HashMap;
-use std::fs::*;
-use std::io::Write;
-use std::io::{self, BufRead, BufReader};
-use std::process;
+
 // Name of the program, to be used in diagnostic messages.
 static PROGRAM_NAME: &str = "terminus";
 
