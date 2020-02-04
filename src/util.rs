@@ -330,8 +330,6 @@ pub fn get_active_transcripts(filename: &std::path::Path, length : usize ) -> Ve
         let a: u32 = iter.next().unwrap().parse().unwrap();
         if u != 0 || a != 0 {
             active_transcripts[i] = true;
-        }else {
-            active_transcripts[i] = false;
         }
     }
     active_transcripts
