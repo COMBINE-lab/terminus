@@ -3,6 +3,7 @@ use std::fs::*;
 use std::hash::Hash;
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct FileList {
@@ -88,6 +89,12 @@ pub struct EdgeInfo {
     pub count: u32,
     pub state: i32,
     pub eqlist: Vec<usize>,
+}
+
+#[derive(Debug)]
+pub struct EdgeInfoSmall{
+    pub count: u32,
+    pub presenceSet: HashSet<usize>,
 }
 
 #[derive(Debug, Default)]

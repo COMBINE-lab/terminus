@@ -41,6 +41,7 @@ use std::fs::*;
 use std::io::Write;
 use std::io::{self, BufRead, BufReader};
 use std::process;
+use std::collections::HashSet;
 // Name of the program, to be used in diagnostic messages.
 static PROGRAM_NAME: &str = "terminus";
 
@@ -96,9 +97,18 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     println!("min-spread : {}", min_spread);
     println!("tolerance : {}", tolerance);
     println!("dir : {}", dname);
-    let compo: Vec<&str> = dname.rsplit('/').collect();
+    let mut dname_copy = dname.clone();
+    if dname.chars().nth(dname.len()-1).unwrap() == '/'{
+        dname_copy.pop();
+    }
+    let compo: Vec<&str> = dname_copy.rsplit('/').collect();
     //println!("{:?}",compo);
     let experiment_name = compo[0];
+    if experiment_name == ""{
+        println!("No experiment name");
+        process::exit(0x0100);
+    }
+    println!("experiment name {:?}", experiment_name);
     let mut prefix_path = prefix;
     prefix_path.push_str("/");
     prefix_path.push_str(experiment_name);
@@ -221,11 +231,11 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let dir_paths: Vec<_> = sub_m.values_of("dirs").unwrap().collect();
     let prefix: String = sub_m.value_of("out").unwrap().to_string();
 
-    let mut global_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
+    let mut global_graph = pg::Graph::<usize, salmon_types::EdgeInfoSmall, petgraph::Undirected>::new_undirected();
 
     // add edges
 
-    for (_, dname) in dir_paths.iter().enumerate() {
+    for (dir_index, dname) in dir_paths.iter().enumerate() {
         let compo: Vec<&str> = dname.rsplit('/').collect();
         let experiment_name = compo[0];
         println!("experiment name {}", experiment_name);
@@ -272,10 +282,20 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                     match e {
                         Some(ei) => {
                             let ew = global_graph.edge_weight_mut(ei).unwrap();
-                            *ew += 1;
+                            ew.count += 1;
+                            ew.presenceSet.remove(&dir_index);
                         }
                         None => {
-                            global_graph.add_edge(va, vb, 1);
+                            let mut set : HashSet<usize> = (0usize.. dir_paths.len()).map(usize::from).collect();
+                            set.remove(&dir_index);
+                            global_graph.add_edge(
+                                va, 
+                                vb, 
+                                salmon_types::EdgeInfoSmall{
+                                    count : 1,
+                                    presenceSet : set.clone(),
+                                }
+                            );
                         }
                     }
                 }
@@ -288,17 +308,19 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for edge in global_graph.raw_edges() {
         graph_file.write_all(
             format!(
-                "{}\t{}\t{}\n",edge.source().index(), edge.target().index(), edge.weight
+                "{}\t{}\t{:?}\n",edge.source().index(), edge.target().index(), edge.weight
             ).as_bytes()
         )?;
     }
 
     // globally active
     let mut global_active_transcripts : std::vec::Vec<bool> = vec![false; global_graph.node_count()];
+    let mut present_transcripts = Vec::new();
     let mut first_sample = true;
     for (_, dname) in dir_paths.iter().enumerate() {
         let file_list = salmon_types::FileList::new(dname.to_string());
         let active_list = util::get_active_transcripts(&file_list.ambig_file, global_graph.node_count());
+        present_transcripts.push(active_list.clone());
         if first_sample{
             for (i,t) in active_list.iter().enumerate(){
                 global_active_transcripts[i] = *t ;
@@ -380,11 +402,23 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         |_ni, n| Some(*n),
         |ei, e| {
             let (a, b) = global_graph.edge_endpoints(ei).unwrap();
-            if global_active_transcripts[a.index()] && global_active_transcripts[b.index()] && (*e as usize) >= half_length{
+            let mut keepit = true ;
+            for dir_index in &e.presenceSet{
+                if present_transcripts[*dir_index][a.index()] || present_transcripts[*dir_index][b.index()]{
+                    keepit = false;
+                    break ;
+                }
+            }
+            if keepit{
                 Some(e)
-            } else {
+            }else{
                 None
             }
+            // if global_active_transcripts[a.index()] && global_active_transcripts[b.index()] && (*e as usize) >= half_length{
+            //     Some(e)
+            // } else {
+            //     None
+            // }
         }
     );
 
