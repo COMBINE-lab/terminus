@@ -326,12 +326,12 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                 global_active_transcripts[i] = *t ;
             }
             first_sample = false;
-        }else{
-            for (i,t) in active_list.iter().enumerate(){
-                global_active_transcripts[i] = global_active_transcripts[i] & *t ;
+        } else {
+            for (i, t) in active_list.iter().enumerate() {
+                global_active_transcripts[i] = global_active_transcripts[i] & *t;
             }
         }
-    } 
+    }
 
     // filter
     let consensus_thresh = sub_m
@@ -398,7 +398,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     //     final_num_comp = result + 2;
     // }
 
-    let global_filtered_graph = global_graph.filter_map( 
+    let global_filtered_graph = global_graph.filter_map(
         |_ni, n| Some(*n),
         |ei, e| {
             let (a, b) = global_graph.edge_endpoints(ei).unwrap();
