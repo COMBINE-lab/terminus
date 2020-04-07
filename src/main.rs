@@ -347,11 +347,12 @@ fn main() -> io::Result<()> {
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(
             SubCommand::with_name("group")
-            .about("Computing individual graphs and dump consensus")
+            .about("perform per-sample grouping of transcripts; required prior to consensus collapse.")
             .arg(
                 Arg::with_name("dir")
                     .long("dir")
                     .short("d")
+                    .required(true)
                     .takes_value(true)
                     .help("directory to read input from")
             )
@@ -384,6 +385,7 @@ fn main() -> io::Result<()> {
                 Arg::with_name("out")
                     .long("out")
                     .short("o")
+                    .required(true)
                     .takes_value(true)
                     .requires("dir")
                     .help("prefix where output would be written")
@@ -391,11 +393,12 @@ fn main() -> io::Result<()> {
         )
         .subcommand(
             SubCommand::with_name("collapse")
-            .about("Computing individual graphs and dump consensus")
+            .about("analyze a collection of per-sample groups, and produce a consensus grouping.")
             .arg(
                 Arg::with_name("dirs")
                     .long("dirs")
                     .short("d")
+                    .required(true)
                     .multiple(true)
                     .takes_value(true)
                     .help("direcotories to read the group files from")
@@ -404,6 +407,7 @@ fn main() -> io::Result<()> {
                 Arg::with_name("out")
                     .long("out")
                     .short("o")
+                    .required(true)
                     .takes_value(true)
                     .requires("dirs")
                     .help("prefix where output would be written")
