@@ -36,7 +36,7 @@ impl FileList {
         let parent = dir.as_path().join("aux_info");
 
         let mut eq_name = "eq_classes.txt";
-        let mi_path = parent.join("meta_info.json").to_path_buf();
+        let mi_path = parent.join("meta_info.json");
         if mi_path.exists() {
             let file = File::open(mi_path);
             let reader = BufReader::new(file.unwrap());
@@ -51,15 +51,15 @@ impl FileList {
 
         FileList {
             prefix: dir.clone(),
-            ambig_file: parent.join("ambig_info.tsv").to_path_buf(),
-            mi_file: parent.join("meta_info.json").to_path_buf(),
-            quant_file: dir.as_path().join("quant.sf").to_path_buf(),
-            eq_file: parent.join(eq_name).to_path_buf(),
-            bootstrap_file: parent.join("bootstrap").join("bootstraps.gz").to_path_buf(),
-            names_tsv_file: parent.join("bootstrap").join("names.tsv.gz").to_path_buf(),
+            ambig_file: parent.join("ambig_info.tsv"),
+            mi_file: parent.join("meta_info.json"),
+            quant_file: dir.as_path().join("quant.sf"),
+            eq_file: parent.join(eq_name),
+            bootstrap_file: parent.join("bootstrap").join("bootstraps.gz"),
+            names_tsv_file: parent.join("bootstrap").join("names.tsv.gz"),
             cmd_file: dir.as_path().join("cmd_info.json"),
             cluster_file: dir.as_path().join("clusters.txt"),
-            collapsed_log_file: dir.as_path().join("collapsed.log").to_path_buf(),
+            collapsed_log_file: dir.as_path().join("collapsed.log"),
             group_file: dir.as_path().join("groups.txt"),
             delta_file: dir.as_path().join("delta.log"),
         }
