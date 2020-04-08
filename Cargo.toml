@@ -1,7 +1,7 @@
 [package]
 name = "terminus"
 version = "0.1.0"
-authors = ["Rob Patro <rob@cs.umd.edu>", "Hirak Sarka <hirak@cs.umd.edu>"]
+authors = ["Rob Patro <rob@cs.umd.edu>", "Hirak Sarkar <hsarkar@cs.umd.edu>"]
 edition = "2018"
 
 [dependencies]
