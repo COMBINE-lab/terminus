@@ -355,7 +355,7 @@ def main():
     print(j.corr('spearman'))
     get_spearman_mard(t,m)
 
-    # write_dataframes(inf_res['salmon_with_truth'], inf_res['mercury_with_truth'],res_mmcollapse_swim['mmcollapse_df'],j,t,m)
+    write_dataframes(inf_res['salmon_with_truth'], inf_res['mercury_with_truth'],res_mmcollapse_swim['mmcollapse_df'],j,t,m)
 
 
 if __name__ == '__main__':
