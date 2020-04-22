@@ -9,13 +9,13 @@ use std::time::Instant;
 //use std::num::pow::pow;
 //use std::collections::BinaryHeap;
 
-use math::round;
 use binary_heap_plus::*;
 use byteorder::{ByteOrder, LittleEndian};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use itertools::Itertools;
+use math::round;
 use nalgebra as na;
 use ndarray::prelude::*;
 use num_traits::cast::ToPrimitive;
@@ -31,8 +31,10 @@ use serde::Deserialize;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
 
-use crate::salmon_types::{AlevinMetaData, EdgeInfo, EqClassExperiment, BFHEqClassExperiment, FileList, 
-    MetaInfo, TxpRecord, ShortEdgeInfo};
+use crate::salmon_types::{
+    AlevinMetaData, BFHEqClassExperiment, EdgeInfo, EqClassExperiment, FileList, MetaInfo,
+    ShortEdgeInfo, TxpRecord,
+};
 
 // General functions to r/w files
 // files to be handled
@@ -1413,7 +1415,6 @@ pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Err
     // make graph from these
 }
 
-
 pub fn matrix_reader(
     input: &str,
     num_cells: usize,
@@ -1482,7 +1483,7 @@ pub fn matrix_reader(
         "w/ {:.2} Molecules/cell",
         total_molecules as f32 / num_cells as f32
     );
-   
+
     println!("\n------------------Computing tier 3 genes--------------------");
     for (cell_id, exp) in expressions.iter_mut().enumerate() {
         let bit_vec = &bit_vecs[cell_id];
@@ -1491,15 +1492,20 @@ pub fn matrix_reader(
         for (feature_id, flag) in bit_vec.iter().enumerate() {
             if *flag != 0 {
                 for (offset, j) in format!("{:8b}", flag).chars().enumerate() {
-                    if let '1' = j {fids.push((8 * feature_id) + offset)}
+                    if let '1' = j {
+                        fids.push((8 * feature_id) + offset)
+                    }
                 }
             }
         }
 
         assert!(
             fids.len() == exp.len(),
-            format!("#positions {} doesn't match with #expressed features {}",
-                    fids.len(), exp.len())
+            format!(
+                "#positions {} doesn't match with #expressed features {}",
+                fids.len(),
+                exp.len()
+            )
         );
         // mtx_data = format!("cell{}", cell_id + 1);
         let mut zero_counter = 0;
@@ -1537,20 +1543,22 @@ pub fn matrix_reader(
     // for i in &mut tier_fraction_vec {
     //     *i /= num_cells as f32;
     // }
-    tier_fraction_vec.iter_mut().for_each(|i| *i /= num_cells as f32);
+    tier_fraction_vec
+        .iter_mut()
+        .for_each(|i| *i /= num_cells as f32);
     Ok(true)
 }
 
 pub fn parse_bfh(
-    alevin_info: &AlevinMetaData, 
+    alevin_info: &AlevinMetaData,
     t2g_file_name: &std::path::Path,
     _tier_mat: &[Vec<u8>],
 ) -> Result<BFHEqClassExperiment, io::Error> {
-
     println!("\n------------------Parsing BFH file--------------------");
     // Get transcript to gene mapping
     let mut t2gmap = HashMap::new();
-    let t2g_file = File::open(t2g_file_name).expect("transcript to gene mapping file does not exist");
+    let t2g_file =
+        File::open(t2g_file_name).expect("transcript to gene mapping file does not exist");
     #[derive(Deserialize)]
     struct T2GPair {
         transcript_name: String,
@@ -1565,10 +1573,10 @@ pub fn parse_bfh(
         // Notice that we need to provide a type hint for automatic
         // deserialization.
         let record: T2GPair = result?;
-        t2gmap.insert(record.transcript_name,record.gene_name);
+        t2gmap.insert(record.transcript_name, record.gene_name);
     }
 
-    // --- reading trnascripts, cell barcodes and number of 
+    // --- reading trnascripts, cell barcodes and number of
     // --- equivalence classes
     // read bfh file
     let bfh_file = File::open(alevin_info.bfh_file.clone()).expect("can not open bfh file");
@@ -1580,21 +1588,21 @@ pub fn parse_bfh(
         .read_line(&mut buf)
         .expect("Cannot read first line");
     buf.pop();
-    let num_targets : usize = buf.parse().unwrap();
+    let num_targets: usize = buf.parse().unwrap();
     buf.clear();
     // num_cells
     buf_reader
         .read_line(&mut buf)
         .expect("Cannot read second line");
     buf.pop();
-    let num_cells : usize = buf.parse().unwrap();
+    let num_cells: usize = buf.parse().unwrap();
     buf.clear();
     // num_equivalence classes
     buf_reader
         .read_line(&mut buf)
         .expect("Cannot read second line");
     buf.pop();
-    let neq : usize = buf.parse().unwrap();
+    let neq: usize = buf.parse().unwrap();
     buf.clear();
 
     // convert the transcripts to gene maps
@@ -1627,16 +1635,16 @@ pub fn parse_bfh(
             .expect("could read eq. class");
         buf.pop();
         let mut iter = buf.split_ascii_whitespace();
-        let num_labels : usize = iter.next().unwrap().parse().unwrap();
+        let num_labels: usize = iter.next().unwrap().parse().unwrap();
         // things to push to class
-        let mut gene_labels = Vec::<usize>::new() ;
-        let mut cell_ids = Vec::<usize>::new() ;
-        // let mut tiers = Vec::<u16>::new() ;       
+        let mut gene_labels = Vec::<usize>::new();
+        let mut cell_ids = Vec::<usize>::new();
+        // let mut tiers = Vec::<u16>::new() ;
         // read the tids
         for _ in 0..num_labels {
-            let tid : usize = iter.next().unwrap().parse().unwrap();
+            let tid: usize = iter.next().unwrap().parse().unwrap();
             // transcript name
-            let tname = tnames[tid].clone() ;
+            let tname = tnames[tid].clone();
             // gene name
             if let Some(gname) = t2gmap.get(&tname) {
                 if let Some(gid) = alevin_info.feature_map.get(gname) {
@@ -1650,25 +1658,25 @@ pub fn parse_bfh(
         }
 
         // tot_num_reads
-        let tot_num_reads : u32 = iter.next().unwrap().parse().unwrap();
+        let tot_num_reads: u32 = iter.next().unwrap().parse().unwrap();
         // num_bc
-        let num_bcs : usize = iter.next().unwrap().parse().unwrap();
+        let num_bcs: usize = iter.next().unwrap().parse().unwrap();
         for _ in 0..num_bcs {
             // cell barcode
-            let bc : usize = iter.next().unwrap().parse().unwrap();
+            let bc: usize = iter.next().unwrap().parse().unwrap();
             let bc_name = cnames[bc].clone();
             if let Some(cell_id) = alevin_info.cell_barcode_map.get(&bc_name) {
                 cell_ids.push(*cell_id);
             }
             // number of umi,count pair
-            let num_umi : usize = iter.next().unwrap().parse().unwrap();
+            let num_umi: usize = iter.next().unwrap().parse().unwrap();
             for _ in 0..num_umi {
                 let _umi_seq = iter.next();
                 let _umi_cnt = iter.next();
             }
         }
         // add the class
-        exp.add_class(&mut gene_labels,&mut cell_ids, tot_num_reads);
+        exp.add_class(&mut gene_labels, &mut cell_ids, tot_num_reads);
         if j % 100 == 0 {
             print!("\r Done Reading {} equivalence classes", j);
             io::stdout().flush()?;
@@ -1684,9 +1692,8 @@ pub fn bfh_to_graph(
     tier_fraction_vec: &[f32],
     alevin_info: &AlevinMetaData,
 ) -> pg::Graph<usize, ShortEdgeInfo, petgraph::Undirected> {
-    
     println!("\n------------------Building Gene-level graph--------------------");
-    
+
     let start = Instant::now();
     let mut og = pg::Graph::<usize, ShortEdgeInfo, petgraph::Undirected>::new_undirected();
     for (i, _n) in alevin_info.feature_vector.iter().enumerate() {
@@ -1707,12 +1714,11 @@ pub fn bfh_to_graph(
     //         }
     //     })
     //     .collect();
-    
+
     // let mut filtered_indices_vec = vec![false; alevin_info.num_of_features];
     // for i in filtered_indices {
     //     filtered_indices_vec[i as usize] = true;
     // }
-
 
     for (i, x) in exp.classes.iter().enumerate() {
         let ns = x.0;
@@ -1721,7 +1727,7 @@ pub fn bfh_to_graph(
 
         // only keep genes with low
         // confidence
-        let thresh : f32 = 0.0;
+        let thresh: f32 = 0.0;
         let retained: std::vec::Vec<usize> = (0..ns.len())
             .filter_map(|j| {
                 if tier_fraction_vec[j as usize] > thresh {
@@ -1732,14 +1738,14 @@ pub fn bfh_to_graph(
             })
             .collect();
 
-        for a in 0..retained.len(){
+        for a in 0..retained.len() {
             let na = retained[a] as usize;
-            for b in retained.iter().skip(a+1) {
-                let nb = *b as usize ;
+            for b in retained.iter().skip(a + 1) {
+                let nb = *b as usize;
                 if na == nb {
                     continue;
-                } 
-                let (u,v) = if na < nb {(na, nb)} else {(nb, na)} ;
+                }
+                let (u, v) = if na < nb { (na, nb) } else { (nb, na) };
                 let va = pg::graph::NodeIndex::new(u);
                 let vb = pg::graph::NodeIndex::new(v);
 
@@ -1747,18 +1753,19 @@ pub fn bfh_to_graph(
                 match e {
                     Some(ei) => {
                         let mut ew = og.edge_weight_mut(ei).unwrap();
-                        ew.count += read_count ;
+                        ew.count += read_count;
                         ew.eqlist.push(i);
                     }
                     None => {
-                        let mean_frac = (tier_fraction_vec[na] + tier_fraction_vec[nb]) / 2.0 as f32 ;
+                        let mean_frac =
+                            (tier_fraction_vec[na] + tier_fraction_vec[nb]) / 2.0 as f32;
                         og.add_edge(
                             va,
                             vb,
                             ShortEdgeInfo {
-                                eqlist : vec![i],
-                                count : read_count,
-                                tierfraction : mean_frac,
+                                eqlist: vec![i],
+                                count: read_count,
+                                tierfraction: mean_frac,
                             },
                         );
                     }
@@ -1774,5 +1781,4 @@ pub fn bfh_to_graph(
     println!("Elapsed time for computing graph {:?}", start.elapsed());
 
     og
-
 }

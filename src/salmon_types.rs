@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::*;
 use std::hash::Hash;
-use std::io::BufReader;
 use std::io::prelude::*;
+use std::io::BufReader;
 use std::path::PathBuf;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct AlevinMetaData {
@@ -22,22 +22,22 @@ pub struct AlevinMetaData {
     pub cell_barcode_map: HashMap<String, usize>,
 }
 
-
 impl AlevinMetaData {
     pub fn new(alevin_prefix: String) -> AlevinMetaData {
         let dir = PathBuf::from(alevin_prefix);
         if !dir.as_path().exists() {
-            panic!("The alevin directory {} does not exist",
+            panic!(
+                "The alevin directory {} does not exist",
                 dir.to_str().unwrap()
             );
-        }else if !dir.as_path().is_dir() {
+        } else if !dir.as_path().is_dir() {
             panic!(
                 "The path {} did not point to a valid directory",
                 dir.to_str().unwrap()
             );
         }
-        AlevinMetaData{
-            alevin_prefix : dir.clone(),
+        AlevinMetaData {
+            alevin_prefix: dir.clone(),
             quant_file: dir.as_path().join("quants_mat.gz"),
             tier_file: dir.as_path().join("quants_tier_mat.gz"),
             col_file: dir.as_path().join("quants_mat_cols.txt"),
@@ -52,29 +52,27 @@ impl AlevinMetaData {
         }
     }
 
-    pub fn load(&mut self){
+    pub fn load(&mut self) {
         // read features
         let feature_file = File::open(self.col_file.clone()).unwrap();
         let buf_reader_feature_file = BufReader::new(feature_file);
-        for (i,line) in buf_reader_feature_file.lines().enumerate() {
+        for (i, line) in buf_reader_feature_file.lines().enumerate() {
             let line_str = line.unwrap();
             self.feature_vector.push(line_str.clone());
-            self.feature_map.insert(line_str.clone(),i);
+            self.feature_map.insert(line_str.clone(), i);
         }
 
         let cell_file = File::open(self.row_file.clone()).unwrap();
         let buf_reader_cell_file = BufReader::new(cell_file);
-        for (i,line) in buf_reader_cell_file.lines().enumerate() {
+        for (i, line) in buf_reader_cell_file.lines().enumerate() {
             let line_str = line.unwrap();
             self.cell_barcode_vector.push(line_str.clone());
-            self.cell_barcode_map.insert(line_str.clone(),i);
+            self.cell_barcode_map.insert(line_str.clone(), i);
         }
         self.num_of_features = self.feature_vector.len();
         self.num_of_cells = self.cell_barcode_vector.len();
         //self.feature_vector = buf_reader_feature_file.lines().iter().map(|n| n.parse::<String>().unwrap()).collect();
     }
-
-
 }
 
 #[derive(Debug)]
@@ -162,11 +160,10 @@ pub struct EdgeInfo {
 }
 
 pub struct ShortEdgeInfo {
-    pub eqlist : Vec<usize>,
+    pub eqlist: Vec<usize>,
     pub count: u32,
-    pub tierfraction : f32,
+    pub tierfraction: f32,
 }
-
 
 #[derive(Debug, Default)]
 pub struct EqList {
@@ -270,13 +267,13 @@ impl Default for EqClassExperiment {
 // --------------------------------
 
 // Equivalence classes for BFH
-// will be a bit different from 
+// will be a bit different from
 // Salmon equivalence classes
 #[derive(Debug, Default)]
 pub struct BFHEqList {
     pub offsets: Vec<usize>,
     pub labels: Vec<usize>,
-    pub cells : Vec<usize>,
+    pub cells: Vec<usize>,
     pub counts: Vec<u32>,
 }
 
@@ -368,7 +365,6 @@ impl Default for BFHEqClassExperiment {
 
 // End of BFH equivalence classes
 // -----------------------------
-
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(non_snake_case)]

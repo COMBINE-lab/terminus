@@ -343,17 +343,16 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
     // read alevin output
     let mut alevin_exp = salmon_types::AlevinMetaData::new(dname);
-    alevin_exp.load(); 
+    alevin_exp.load();
     // [debug] check if alevin is loaded correctly
     println!(
-        "Number of cells {:?}, number of features: {:?}", 
-        alevin_exp.num_of_cells, 
-        alevin_exp.num_of_features
+        "Number of cells {:?}, number of features: {:?}",
+        alevin_exp.num_of_cells, alevin_exp.num_of_features
     );
     // read alevin matrix
     // extract the tier 3 fraction
     let mut bit_vecs: Vec<Vec<u8>> = Vec::new();
-    let mut tiers : Vec<Vec<u8>> = Vec::new();
+    let mut tiers: Vec<Vec<u8>> = Vec::new();
     let mut tier_fraction_vec: Vec<f32> = vec![0.0 as f32; alevin_exp.num_of_features];
     util::matrix_reader(
         alevin_exp.tier_file.to_str().unwrap(),
@@ -362,26 +361,19 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &mut tiers,
         &mut bit_vecs,
         &mut tier_fraction_vec,
-    )? ;
+    )?;
 
     // read bfh file
-    let bfh_classes = util::parse_bfh(
-        &alevin_exp,
-        &t2g_file,
-        &tiers,
-    ).expect("Reading bfh class failed");
+    let bfh_classes =
+        util::parse_bfh(&alevin_exp, &t2g_file, &tiers).expect("Reading bfh class failed");
 
     // construct gene level graph
-    let gr = util::bfh_to_graph(
-        &bfh_classes,
-        &tier_fraction_vec,
-        &alevin_exp,
-    );
-    
+    let gr = util::bfh_to_graph(&bfh_classes, &tier_fraction_vec, &alevin_exp);
+
     let num_connected_components = connected_components(&gr);
     println!("#Connected components {:?}", num_connected_components);
 
-    let mut comps : Vec<Vec<_>> = tarjan_scc(&gr);
+    let mut comps: Vec<Vec<_>> = tarjan_scc(&gr);
     comps.sort_by(|v, w| v.len().cmp(&w.len()));
 
     create_dir_all(out_dname.clone())?;
@@ -390,8 +382,8 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut gfile = File::create(group_file)?;
     for (_i, comp) in comps.iter().enumerate() {
         if comp.len() != 1 {
-            let mut member_names : Vec<String> = Vec::with_capacity(comp.len());
-            for g in comp.iter(){
+            let mut member_names: Vec<String> = Vec::with_capacity(comp.len());
+            for g in comp.iter() {
                 let node_ind = g.index();
                 member_names.push(alevin_exp.feature_vector[node_ind].clone());
             }
@@ -507,7 +499,7 @@ fn main() -> io::Result<()> {
                     .required(true)
                     .takes_value(true)
                     .help("directory to read input from")
-            ) 
+            )
             .arg(
                 Arg::with_name("transcript2gene")
                     .long("t2g")
@@ -515,7 +507,7 @@ fn main() -> io::Result<()> {
                     .required(true)
                     .takes_value(true)
                     .help("directory to read input from")
-            ) 
+            )
             .arg(
                 Arg::with_name("out")
                     .long("out")
