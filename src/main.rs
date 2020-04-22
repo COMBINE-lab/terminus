@@ -342,7 +342,7 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let t2g_file = PathBuf::from(sub_m.value_of("transcript2gene").unwrap().to_string());
 
     // read alevin output
-    let mut alevin_exp = salmon_types::AlevinMetaData::new(dname.to_string());
+    let mut alevin_exp = salmon_types::AlevinMetaData::new(dname);
     alevin_exp.load(); 
     // [debug] check if alevin is loaded correctly
     println!(

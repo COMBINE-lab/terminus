@@ -1450,7 +1450,7 @@ pub fn matrix_reader(
             //let mut float_buffer: Vec<f32> = vec![0.0_f32; num_ones as usize];
             //file.read_exact(&mut expression[..])?;
 
-            let mut expression: Vec<u8> = vec![0; 1 * (num_ones as usize)];
+            let mut expression: Vec<u8> = vec![0; num_ones as usize];
 
             file.read_exact(&mut expression[..])?;
 
@@ -1484,17 +1484,14 @@ pub fn matrix_reader(
     );
    
     println!("\n------------------Computing tier 3 genes--------------------");
-    for (cell_id, exp) in expressions.into_iter().enumerate() {
+    for (cell_id, exp) in expressions.iter_mut().enumerate() {
         let bit_vec = &bit_vecs[cell_id];
         let mut fids: Vec<usize> = Vec::new();
 
-        for (feature_id, flag) in bit_vec.into_iter().enumerate() {
+        for (feature_id, flag) in bit_vec.iter().enumerate() {
             if *flag != 0 {
                 for (offset, j) in format!("{:8b}", flag).chars().enumerate() {
-                    match j {
-                        '1' => fids.push((8 * feature_id) + offset),
-                        _ => (),
-                    };
+                    if let '1' = j {fids.push((8 * feature_id) + offset)}
                 }
             }
         }
@@ -1506,7 +1503,7 @@ pub fn matrix_reader(
         );
         // mtx_data = format!("cell{}", cell_id + 1);
         let mut zero_counter = 0;
-        for (index, count) in exp.into_iter().enumerate() {
+        for (index, count) in exp.iter_mut().enumerate() {
             assert!(
                 fids[index] < num_genes,
                 format!("{} position > {}", fids[index], num_genes)
@@ -1547,7 +1544,7 @@ pub fn matrix_reader(
 pub fn parse_bfh(
     alevin_info: &AlevinMetaData, 
     t2g_file_name: &std::path::Path,
-    _tier_mat: & Vec<Vec<u8>>,
+    _tier_mat: &[Vec<u8>],
 ) -> Result<BFHEqClassExperiment, io::Error> {
 
     println!("\n------------------Parsing BFH file--------------------");
@@ -1684,7 +1681,7 @@ pub fn parse_bfh(
 #[allow(dead_code, clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn bfh_to_graph(
     exp: &BFHEqClassExperiment,
-    tier_fraction_vec: &Vec<f32>,
+    tier_fraction_vec: &[f32],
     alevin_info: &AlevinMetaData,
 ) -> pg::Graph<usize, ShortEdgeInfo, petgraph::Undirected> {
     
@@ -1770,7 +1767,7 @@ pub fn bfh_to_graph(
         }
     }
 
-    println!("");
+    println!();
     println!("node count: {}", og.node_count());
     println!("edge count: {}", og.edge_count());
 
