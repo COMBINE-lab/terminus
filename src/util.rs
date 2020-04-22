@@ -31,7 +31,8 @@ use serde::Deserialize;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
 
-use crate::salmon_types::{AlevinMetaData, EdgeInfo, EqClassExperiment, BFHEqClassExperiment, FileList, MetaInfo, TxpRecord};
+use crate::salmon_types::{AlevinMetaData, EdgeInfo, EqClassExperiment, BFHEqClassExperiment, FileList, 
+    MetaInfo, TxpRecord, ShortEdgeInfo};
 
 // General functions to r/w files
 // files to be handled
@@ -1481,7 +1482,8 @@ pub fn matrix_reader(
         "w/ {:.2} Molecules/cell",
         total_molecules as f32 / num_cells as f32
     );
-    
+   
+    println!("\n------------------Computing tier 3 genes--------------------");
     for (cell_id, exp) in expressions.into_iter().enumerate() {
         let bit_vec = &bit_vecs[cell_id];
         let mut fids: Vec<usize> = Vec::new();
@@ -1526,6 +1528,10 @@ pub fn matrix_reader(
             zero_counter += 1;
             // mtx_data.push_str(&format!(",0"));
         }
+        if cell_id % 100 == 0 {
+            print!("\r Done Reading {} cells", cell_id);
+            io::stdout().flush()?;
+        }
 
         // mtx_data.push_str(&format!("\n"));
         // file.write_all(mtx_data.as_bytes())?;
@@ -1544,6 +1550,7 @@ pub fn parse_bfh(
     _tier_mat: & Vec<Vec<u8>>,
 ) -> Result<BFHEqClassExperiment, io::Error> {
 
+    println!("\n------------------Parsing BFH file--------------------");
     // Get transcript to gene mapping
     let mut t2gmap = HashMap::new();
     let t2g_file = File::open(t2g_file_name).expect("transcript to gene mapping file does not exist");
@@ -1672,4 +1679,103 @@ pub fn parse_bfh(
     }
 
     Ok(exp)
+}
+
+#[allow(dead_code, clippy::too_many_arguments, clippy::cognitive_complexity)]
+pub fn bfh_to_graph(
+    exp: &BFHEqClassExperiment,
+    tier_fraction_vec: &Vec<f32>,
+    alevin_info: &AlevinMetaData,
+) -> pg::Graph<usize, ShortEdgeInfo, petgraph::Undirected> {
+    
+    println!("\n------------------Building Gene-level graph--------------------");
+    
+    let start = Instant::now();
+    let mut og = pg::Graph::<usize, ShortEdgeInfo, petgraph::Undirected>::new_undirected();
+    for (i, _n) in alevin_info.feature_vector.iter().enumerate() {
+        let idx = og.add_node(i);
+        // the index assigned by the graph should be the
+        // order in which we add these
+        debug_assert_eq!(i, idx.index());
+    }
+
+    // let thresh : f32 = 0.5
+    // let filtered_indice: Vec<u32> = tier_fraction_vec
+    //     .indexed_iter()
+    //     .filter_map(|(index, &_item)| {
+    //         if tier_fraction_vec[index] > thresh {
+    //             Some(index as u32)
+    //         } else {
+    //             None
+    //         }
+    //     })
+    //     .collect();
+    
+    // let mut filtered_indices_vec = vec![false; alevin_info.num_of_features];
+    // for i in filtered_indices {
+    //     filtered_indices_vec[i as usize] = true;
+    // }
+
+
+    for (i, x) in exp.classes.iter().enumerate() {
+        let ns = x.0;
+        let _cells = x.1;
+        let read_count = x.2;
+
+        // only keep genes with low
+        // confidence
+        let thresh : f32 = 0.0;
+        let retained: std::vec::Vec<usize> = (0..ns.len())
+            .filter_map(|j| {
+                if tier_fraction_vec[j as usize] > thresh {
+                    Some(ns[j] as usize)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for a in 0..retained.len(){
+            let na = retained[a] as usize;
+            for b in retained.iter().skip(a+1) {
+                let nb = *b as usize ;
+                if na == nb {
+                    continue;
+                } 
+                let (u,v) = if na < nb {(na, nb)} else {(nb, na)} ;
+                let va = pg::graph::NodeIndex::new(u);
+                let vb = pg::graph::NodeIndex::new(v);
+
+                let e = og.find_edge(va, vb);
+                match e {
+                    Some(ei) => {
+                        let mut ew = og.edge_weight_mut(ei).unwrap();
+                        ew.count += read_count ;
+                        ew.eqlist.push(i);
+                    }
+                    None => {
+                        let mean_frac = (tier_fraction_vec[na] + tier_fraction_vec[nb]) / 2.0 as f32 ;
+                        og.add_edge(
+                            va,
+                            vb,
+                            ShortEdgeInfo {
+                                eqlist : vec![i],
+                                count : read_count,
+                                tierfraction : mean_frac,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    println!("");
+    println!("node count: {}", og.node_count());
+    println!("edge count: {}", og.edge_count());
+
+    println!("Elapsed time for computing graph {:?}", start.elapsed());
+
+    og
+
 }

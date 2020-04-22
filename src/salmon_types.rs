@@ -161,6 +161,13 @@ pub struct EdgeInfo {
     pub eqlist: Vec<usize>,
 }
 
+pub struct ShortEdgeInfo {
+    pub eqlist : Vec<usize>,
+    pub count: u32,
+    pub tierfraction : f32,
+}
+
+
 #[derive(Debug, Default)]
 pub struct EqList {
     pub offsets: Vec<usize>,

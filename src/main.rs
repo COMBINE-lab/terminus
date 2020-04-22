@@ -338,7 +338,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     println!("This is about alevin");
     let dname: String = sub_m.value_of("dir").unwrap().to_string();
-    let _out_dname: String = sub_m.value_of("out").unwrap().to_string();
+    let out_dname: String = sub_m.value_of("out").unwrap().to_string();
     let t2g_file = PathBuf::from(sub_m.value_of("transcript2gene").unwrap().to_string());
 
     // read alevin output
@@ -365,13 +365,39 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     )? ;
 
     // read bfh file
-    let _bfh_classes = util::parse_bfh(
+    let bfh_classes = util::parse_bfh(
         &alevin_exp,
         &t2g_file,
         &tiers,
-    );
+    ).expect("Reading bfh class failed");
 
     // construct gene level graph
+    let gr = util::bfh_to_graph(
+        &bfh_classes,
+        &tier_fraction_vec,
+        &alevin_exp,
+    );
+    
+    let num_connected_components = connected_components(&gr);
+    println!("#Connected components {:?}", num_connected_components);
+
+    let mut comps : Vec<Vec<_>> = tarjan_scc(&gr);
+    comps.sort_by(|v, w| v.len().cmp(&w.len()));
+
+    create_dir_all(out_dname.clone())?;
+    let out_prefix = PathBuf::from(out_dname);
+    let group_file = out_prefix.join("group.txt");
+    let mut gfile = File::create(group_file)?;
+    for (_i, comp) in comps.iter().enumerate() {
+        if comp.len() != 1 {
+            let mut member_names : Vec<String> = Vec::with_capacity(comp.len());
+            for g in comp.iter(){
+                let node_ind = g.index();
+                member_names.push(alevin_exp.feature_vector[node_ind].clone());
+            }
+            writeln!(gfile, "{}", member_names.join(","))?;
+        }
+    }
 
     Ok(true)
 }
