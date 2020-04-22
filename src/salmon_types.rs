@@ -2,7 +2,80 @@ use serde::{Deserialize, Serialize};
 use std::fs::*;
 use std::hash::Hash;
 use std::io::BufReader;
+use std::io::prelude::*;
 use std::path::PathBuf;
+use std::collections::HashMap;
+
+#[derive(Debug)]
+pub struct AlevinMetaData {
+    pub alevin_prefix: PathBuf,
+    pub quant_file: PathBuf,
+    pub tier_file: PathBuf,
+    pub row_file: PathBuf,
+    pub col_file: PathBuf,
+    pub bfh_file: PathBuf,
+    pub num_of_cells: usize,
+    pub num_of_features: usize,
+    pub feature_vector: Vec<String>,
+    pub feature_map: HashMap<String, usize>,
+    pub cell_barcode_vector: Vec<String>,
+    pub cell_barcode_map: HashMap<String, usize>,
+}
+
+
+impl AlevinMetaData {
+    pub fn new(alevin_prefix: String) -> AlevinMetaData {
+        let dir = PathBuf::from(alevin_prefix);
+        if !dir.as_path().exists() {
+            panic!("The alevin directory {} does not exist",
+                dir.to_str().unwrap()
+            );
+        }else if !dir.as_path().is_dir() {
+            panic!(
+                "The path {} did not point to a valid directory",
+                dir.to_str().unwrap()
+            );
+        }
+        AlevinMetaData{
+            alevin_prefix : dir.clone(),
+            quant_file: dir.as_path().join("quants_mat.gz"),
+            tier_file: dir.as_path().join("quants_tier_mat.gz"),
+            col_file: dir.as_path().join("quants_mat_cols.txt"),
+            row_file: dir.as_path().join("quants_mat_rows.txt"),
+            bfh_file: dir.as_path().join("bfh.txt"),
+            num_of_cells: 0 as usize,
+            num_of_features: 0 as usize,
+            feature_vector: Vec::<String>::new(),
+            feature_map: HashMap::new(),
+            cell_barcode_vector: Vec::<String>::new(),
+            cell_barcode_map: HashMap::new(),
+        }
+    }
+
+    pub fn load(&mut self){
+        // read features
+        let feature_file = File::open(self.col_file.clone()).unwrap();
+        let buf_reader_feature_file = BufReader::new(feature_file);
+        for (i,line) in buf_reader_feature_file.lines().enumerate() {
+            let line_str = line.unwrap();
+            self.feature_vector.push(line_str.clone());
+            self.feature_map.insert(line_str.clone(),i);
+        }
+
+        let cell_file = File::open(self.row_file.clone()).unwrap();
+        let buf_reader_cell_file = BufReader::new(cell_file);
+        for (i,line) in buf_reader_cell_file.lines().enumerate() {
+            let line_str = line.unwrap();
+            self.cell_barcode_vector.push(line_str.clone());
+            self.cell_barcode_map.insert(line_str.clone(),i);
+        }
+        self.num_of_features = self.feature_vector.len();
+        self.num_of_cells = self.cell_barcode_vector.len();
+        //self.feature_vector = buf_reader_feature_file.lines().iter().map(|n| n.parse::<String>().unwrap()).collect();
+    }
+
+
+}
 
 #[derive(Debug)]
 pub struct FileList {
@@ -185,6 +258,110 @@ impl Default for EqClassExperiment {
         Self::new()
     }
 }
+
+// End of salmon equivalence classes
+// --------------------------------
+
+// Equivalence classes for BFH
+// will be a bit different from 
+// Salmon equivalence classes
+#[derive(Debug, Default)]
+pub struct BFHEqList {
+    pub offsets: Vec<usize>,
+    pub labels: Vec<usize>,
+    pub cells : Vec<usize>,
+    pub counts: Vec<u32>,
+}
+
+pub struct IterBFHEqList<'a> {
+    inner: &'a BFHEqList,
+    pos: usize,
+}
+
+/// Iterator over an EqList that yields
+/// each (label, cells, count) tuple in turn.
+///
+impl<'a> Iterator for IterBFHEqList<'a> {
+    type Item = (&'a [usize], &'a [usize], u32);
+    fn next(&mut self) -> Option<Self::Item> {
+        let i = self.pos;
+        if (i + 1) >= self.inner.offsets.len() {
+            return None;
+        }
+        self.pos += 1;
+        let p = self.inner.offsets[i];
+        let l = self.inner.offsets[(i + 1)] - p;
+        Some((
+            &self.inner.labels[p..(p + l)],
+            &self.inner.cells[p..(p + l)],
+            self.inner.counts[i],
+        ))
+    }
+}
+
+impl BFHEqList {
+    pub fn iter(&self) -> IterBFHEqList {
+        IterBFHEqList {
+            inner: self,
+            pos: 0,
+        }
+    }
+
+    pub fn add_class(&mut self, labs: &mut Vec<usize>, cells: &mut Vec<usize>, count: u32) {
+        let len = labs.len();
+        self.offsets.push(self.offsets.last().unwrap() + len);
+        self.labels.append(labs);
+        self.cells.append(cells);
+        self.counts.push(count);
+    }
+
+    pub fn new() -> BFHEqList {
+        BFHEqList {
+            offsets: vec![0 as usize],
+            labels: Vec::<usize>::new(),
+            cells: Vec::<usize>::new(),
+            counts: Vec::<u32>::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BFHEqClassExperiment {
+    pub neq: usize, // number of equivalence classes
+    pub classes: BFHEqList,
+}
+
+impl BFHEqClassExperiment {
+    /// Add an equivalence class to the set of equivalence classes for this experiment
+    ///
+    /// # Arguments
+    ///
+    /// * `labs` - A vector of the transcript ids for this eq class
+    /// * `cells` - A vector of the cell ids for the where this equivalence class
+    ///               appears
+    /// * `count` - The number of fragments that are equivalent with respect to this class.
+    ///
+    pub fn add_class(&mut self, labs: &mut Vec<usize>, cells: &mut Vec<usize>, count: u32) {
+        self.classes.add_class(labs, cells, count);
+    }
+
+    pub fn new() -> BFHEqClassExperiment {
+        BFHEqClassExperiment {
+            neq: 0,
+            classes: BFHEqList::new(),
+        }
+    }
+}
+
+impl Default for BFHEqClassExperiment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// End of BFH equivalence classes
+// -----------------------------
+
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(non_snake_case)]

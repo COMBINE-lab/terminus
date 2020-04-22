@@ -9,6 +9,7 @@ use std::time::Instant;
 //use std::num::pow::pow;
 //use std::collections::BinaryHeap;
 
+use math::round;
 use binary_heap_plus::*;
 use byteorder::{ByteOrder, LittleEndian};
 use flate2::read::GzDecoder;
@@ -26,10 +27,11 @@ use rand::distributions::{Distribution, Uniform};
 use rand_core::SeedableRng;
 use rand_pcg::Pcg64;
 use refinery::Partition;
+use serde::Deserialize;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
 
-use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
+use crate::salmon_types::{AlevinMetaData, EdgeInfo, EqClassExperiment, BFHEqClassExperiment, FileList, MetaInfo, TxpRecord};
 
 // General functions to r/w files
 // files to be handled
@@ -1408,4 +1410,266 @@ pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Err
     //let duration = start.elapsed();
     Ok(exp)
     // make graph from these
+}
+
+
+pub fn matrix_reader(
+    input: &str,
+    num_cells: usize,
+    num_genes: usize,
+    expressions: &mut Vec<Vec<u8>>,
+    bit_vecs: &mut Vec<Vec<u8>>,
+    tier_fraction_vec: &mut Vec<f32>,
+) -> Result<bool, io::Error> {
+    println!("Using {} as input EDS file\n", input);
+    println!(
+        "Using {} Rows (cells) and {} Columns (features)",
+        num_cells, num_genes
+    );
+
+    let num_bit_vecs: usize = round::ceil(num_genes as f64 / 8.0, 0) as usize;
+    let mut total_molecules = 0;
+    let mut total_exp_values = 0;
+
+    {
+        let mut count = 0;
+        let file_handle = File::open(input)?;
+        let mut file = GzDecoder::new(file_handle);
+
+        for _ in 0..num_cells {
+            let mut bit_vec = vec![0; num_bit_vecs];
+            file.read_exact(&mut bit_vec[..])?;
+            let mut num_ones = 0;
+            for bits in bit_vec.iter() {
+                num_ones += bits.count_ones();
+            }
+            bit_vecs.push(bit_vec);
+
+            //let mut expression: Vec<u8> = vec![0; 4 * (num_ones as usize)];
+            //let mut float_buffer: Vec<f32> = vec![0.0_f32; num_ones as usize];
+            //file.read_exact(&mut expression[..])?;
+
+            let mut expression: Vec<u8> = vec![0; 1 * (num_ones as usize)];
+
+            file.read_exact(&mut expression[..])?;
+
+            let cell_count: u32 = expression.iter().map(|&x| x as u32).sum();
+            total_molecules += cell_count;
+
+            //expr.slice_mut(s![i as usize, ..])
+            //    .assign(&Array::from(expression));
+            expressions.push(expression);
+
+            count += 1;
+            total_exp_values += num_ones;
+            if count % 100 == 0 {
+                print!("\r Done Reading {} cells", count);
+                io::stdout().flush()?;
+            }
+        }
+    }
+
+    println!("\n");
+    assert!(
+        expressions.len() == num_cells,
+        "rows and quants file size mismatch"
+    );
+
+    println!("Found Total {:.2} molecules", total_molecules);
+    println!("Found Total {:.2} expressed entries", total_exp_values);
+    println!(
+        "w/ {:.2} Molecules/cell",
+        total_molecules as f32 / num_cells as f32
+    );
+    
+    for (cell_id, exp) in expressions.into_iter().enumerate() {
+        let bit_vec = &bit_vecs[cell_id];
+        let mut fids: Vec<usize> = Vec::new();
+
+        for (feature_id, flag) in bit_vec.into_iter().enumerate() {
+            if *flag != 0 {
+                for (offset, j) in format!("{:8b}", flag).chars().enumerate() {
+                    match j {
+                        '1' => fids.push((8 * feature_id) + offset),
+                        _ => (),
+                    };
+                }
+            }
+        }
+
+        assert!(
+            fids.len() == exp.len(),
+            format!("#positions {} doesn't match with #expressed features {}",
+                    fids.len(), exp.len())
+        );
+        // mtx_data = format!("cell{}", cell_id + 1);
+        let mut zero_counter = 0;
+        for (index, count) in exp.into_iter().enumerate() {
+            assert!(
+                fids[index] < num_genes,
+                format!("{} position > {}", fids[index], num_genes)
+            );
+
+            while zero_counter != fids[index] {
+                zero_counter += 1;
+                // mtx_data.push_str(&format!(",0"));
+            }
+
+            zero_counter += 1;
+            if *count == 3u8 {
+                tier_fraction_vec[fids[index]] += 1.0;
+            }
+            // mtx_data.push_str(&format!(",{}", count));
+        }
+
+        while zero_counter < num_genes {
+            zero_counter += 1;
+            // mtx_data.push_str(&format!(",0"));
+        }
+
+        // mtx_data.push_str(&format!("\n"));
+        // file.write_all(mtx_data.as_bytes())?;
+    }
+
+    // for i in &mut tier_fraction_vec {
+    //     *i /= num_cells as f32;
+    // }
+    tier_fraction_vec.iter_mut().for_each(|i| *i /= num_cells as f32);
+    Ok(true)
+}
+
+pub fn parse_bfh(
+    alevin_info: &AlevinMetaData, 
+    t2g_file_name: &std::path::Path,
+    _tier_mat: & Vec<Vec<u8>>,
+) -> Result<BFHEqClassExperiment, io::Error> {
+
+    // Get transcript to gene mapping
+    let mut t2gmap = HashMap::new();
+    let t2g_file = File::open(t2g_file_name).expect("transcript to gene mapping file does not exist");
+    #[derive(Deserialize)]
+    struct T2GPair {
+        transcript_name: String,
+        gene_name: String,
+    };
+
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .delimiter(b'\t')
+        .from_reader(t2g_file);
+    for result in rdr.deserialize() {
+        // Notice that we need to provide a type hint for automatic
+        // deserialization.
+        let record: T2GPair = result?;
+        t2gmap.insert(record.transcript_name,record.gene_name);
+    }
+
+    // --- reading trnascripts, cell barcodes and number of 
+    // --- equivalence classes
+    // read bfh file
+    let bfh_file = File::open(alevin_info.bfh_file.clone()).expect("can not open bfh file");
+    let mut buf_reader = BufReader::new(bfh_file);
+    let mut buf = String::new();
+    let mut exp = BFHEqClassExperiment::new();
+    // num_transcripts
+    buf_reader
+        .read_line(&mut buf)
+        .expect("Cannot read first line");
+    buf.pop();
+    let num_targets : usize = buf.parse().unwrap();
+    buf.clear();
+    // num_cells
+    buf_reader
+        .read_line(&mut buf)
+        .expect("Cannot read second line");
+    buf.pop();
+    let num_cells : usize = buf.parse().unwrap();
+    buf.clear();
+    // num_equivalence classes
+    buf_reader
+        .read_line(&mut buf)
+        .expect("Cannot read second line");
+    buf.pop();
+    let neq : usize = buf.parse().unwrap();
+    buf.clear();
+
+    // convert the transcripts to gene maps
+    let mut tnames = Vec::<String>::with_capacity(num_targets);
+    for _ in 0..num_targets {
+        buf.clear();
+        buf_reader
+            .read_line(&mut buf)
+            .expect("could read target name");
+        buf.pop();
+        tnames.push(buf.to_string());
+    }
+    // reads cell names
+    let mut cnames = Vec::<String>::with_capacity(num_cells);
+    for _ in 0..num_cells {
+        buf.clear();
+        buf_reader
+            .read_line(&mut buf)
+            .expect("could read target name");
+        buf.pop();
+        cnames.push(buf.to_string());
+    }
+
+    exp.neq = neq;
+
+    for j in 0..neq {
+        buf.clear();
+        buf_reader
+            .read_line(&mut buf)
+            .expect("could read eq. class");
+        buf.pop();
+        let mut iter = buf.split_ascii_whitespace();
+        let num_labels : usize = iter.next().unwrap().parse().unwrap();
+        // things to push to class
+        let mut gene_labels = Vec::<usize>::new() ;
+        let mut cell_ids = Vec::<usize>::new() ;
+        // let mut tiers = Vec::<u16>::new() ;       
+        // read the tids
+        for _ in 0..num_labels {
+            let tid : usize = iter.next().unwrap().parse().unwrap();
+            // transcript name
+            let tname = tnames[tid].clone() ;
+            // gene name
+            if let Some(gname) = t2gmap.get(&tname) {
+                if let Some(gid) = alevin_info.feature_map.get(gname) {
+                    // insert this gene id
+                    gene_labels.push(*gid);
+                }
+            }
+            // may contain duplicates
+            gene_labels.sort_unstable();
+            gene_labels.dedup();
+        }
+
+        // tot_num_reads
+        let tot_num_reads : u32 = iter.next().unwrap().parse().unwrap();
+        // num_bc
+        let num_bcs : usize = iter.next().unwrap().parse().unwrap();
+        for _ in 0..num_bcs {
+            // cell barcode
+            let bc : usize = iter.next().unwrap().parse().unwrap();
+            let bc_name = cnames[bc].clone();
+            if let Some(cell_id) = alevin_info.cell_barcode_map.get(&bc_name) {
+                cell_ids.push(*cell_id);
+            }
+            // number of umi,count pair
+            let num_umi : usize = iter.next().unwrap().parse().unwrap();
+            for _ in 0..num_umi {
+                let _umi_seq = iter.next();
+                let _umi_cnt = iter.next();
+            }
+        }
+        // add the class
+        exp.add_class(&mut gene_labels,&mut cell_ids, tot_num_reads);
+        if j % 100 == 0 {
+            print!("\r Done Reading {} equivalence classes", j);
+            io::stdout().flush()?;
+        }
+    }
+
+    Ok(exp)
 }

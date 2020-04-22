@@ -14,6 +14,7 @@ use petgraph as pg;
 use petgraph::algo::{connected_components, tarjan_scc};
 use petgraph::unionfind::UnionFind;
 use rayon::prelude::*;
+use std::path::PathBuf;
 
 // Name of the program, to be used in diagnostic messages.
 static PROGRAM_NAME: &str = "terminus";
@@ -334,6 +335,47 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     Ok(true)
 }
 
+fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
+    println!("This is about alevin");
+    let dname: String = sub_m.value_of("dir").unwrap().to_string();
+    let _out_dname: String = sub_m.value_of("out").unwrap().to_string();
+    let t2g_file = PathBuf::from(sub_m.value_of("transcript2gene").unwrap().to_string());
+
+    // read alevin output
+    let mut alevin_exp = salmon_types::AlevinMetaData::new(dname.to_string());
+    alevin_exp.load(); 
+    // [debug] check if alevin is loaded correctly
+    println!(
+        "Number of cells {:?}, number of features: {:?}", 
+        alevin_exp.num_of_cells, 
+        alevin_exp.num_of_features
+    );
+    // read alevin matrix
+    // extract the tier 3 fraction
+    let mut bit_vecs: Vec<Vec<u8>> = Vec::new();
+    let mut tiers : Vec<Vec<u8>> = Vec::new();
+    let mut tier_fraction_vec: Vec<f32> = vec![0.0 as f32; alevin_exp.num_of_features];
+    util::matrix_reader(
+        alevin_exp.tier_file.to_str().unwrap(),
+        alevin_exp.num_of_cells,
+        alevin_exp.num_of_features,
+        &mut tiers,
+        &mut bit_vecs,
+        &mut tier_fraction_vec,
+    )? ;
+
+    // read bfh file
+    let _bfh_classes = util::parse_bfh(
+        &alevin_exp,
+        &t2g_file,
+        &tiers,
+    );
+
+    // construct gene level graph
+
+    Ok(true)
+}
+
 // The entry point of the program
 // that reads from the files and build
 // graphs or later produces the collapsed
@@ -428,6 +470,35 @@ fn main() -> io::Result<()> {
                 .default_value("0.5")
                 .help("threshold for edge consensus")
             )
+        )
+        .subcommand(
+            SubCommand::with_name("alevin")
+            .about("Receive the alevin generated matrix and bootstraps / clusters")
+            .arg(
+                Arg::with_name("dir")
+                    .long("dir")
+                    .short("d")
+                    .required(true)
+                    .takes_value(true)
+                    .help("directory to read input from")
+            ) 
+            .arg(
+                Arg::with_name("transcript2gene")
+                    .long("t2g")
+                    .short("t")
+                    .required(true)
+                    .takes_value(true)
+                    .help("directory to read input from")
+            ) 
+            .arg(
+                Arg::with_name("out")
+                    .long("out")
+                    .short("o")
+                    .required(true)
+                    .takes_value(true)
+                    .requires("dir")
+                    .help("prefix where output would be written")
+            )
         ).get_matches();
 
     pretty_env_logger::init_timed();
@@ -438,6 +509,9 @@ fn main() -> io::Result<()> {
         }
         ("collapse", Some(sub_m)) => {
             do_collapse(&sub_m).expect("Grouping failed");
+        }
+        ("alevin", Some(sub_m)) => {
+            alevin_processing(&sub_m).expect("Alevin ");
         }
         _ => unreachable!(),
     }
