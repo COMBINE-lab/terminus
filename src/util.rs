@@ -1518,7 +1518,7 @@ pub fn matrix_reader(
             }
 
             zero_counter += 1;
-            if *count == 3u8 {
+            if *count == 3u8 || *count == 2u8 {
                 tier_fraction_vec[fids[index]] += 1.0;
             }
             // mtx_data.push_str(&format!(",{}", count));
