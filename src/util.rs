@@ -1428,18 +1428,20 @@ pub fn matrix_reader(
     tier_fraction_vec: &mut Vec<f32>,
     gene_expression_count: &mut Vec<f32>,
 ) -> Result<bool, io::Error> {
-    println!("Using {} as input tier file and {} as quant file\n", 
-            tier_input, quant_input);
+    println!(
+        "Using {} as input tier file and {} as quant file\n",
+        tier_input, quant_input
+    );
     println!(
         "Using {} Rows (cells) and {} Columns (features)",
         num_cells, num_genes
     );
 
-    let mut tier_count_vec = vec![0u32 ; num_genes];
+    let mut tier_count_vec = vec![0u32; num_genes];
     let num_bit_vecs: usize = round::ceil(num_genes as f64 / 8.0, 0) as usize;
     let mut total_molecules = 0;
     let mut total_exp_values = 0;
-    
+
     println!("\n------------------Computing tier 3 genes--------------------");
 
     {
@@ -1453,7 +1455,7 @@ pub fn matrix_reader(
         for _ in 0..num_cells {
             let mut bit_vec = vec![0; num_bit_vecs];
             file.read_exact(&mut bit_vec[..])?;
-           
+
             let mut bit_vec_dum = vec![0; num_bit_vecs];
             quant_file.read_exact(&mut bit_vec_dum[..])?;
 
@@ -1470,7 +1472,6 @@ pub fn matrix_reader(
             // read_tier
             let mut expression: Vec<u8> = vec![0; num_ones as usize];
             file.read_exact(&mut expression[..])?;
-
 
             // read gene_expression
             let mut gene_expression: Vec<u8> = vec![0; 4 * (num_ones_dum as usize)];
@@ -1494,12 +1495,12 @@ pub fn matrix_reader(
                     fids[index] < num_genes,
                     format!("{} position > {}", fids[index], num_genes)
                 );
-    
+
                 if *count == 3u8 {
                     tier_count_vec[fids[index]] += 1u32;
                 }
-            }            
-            
+            }
+
             let mut fids_dum: Vec<usize> = Vec::new();
             for (feature_id, flag) in bit_vec_dum.iter().enumerate() {
                 if *flag != 0 {
@@ -1516,11 +1517,11 @@ pub fn matrix_reader(
                     fids_dum[index] < num_genes,
                     format!("{} position > {}", fids_dum[index], num_genes)
                 );
-    
+
                 if *count > 0f32 {
                     gene_expression_count[fids[index]] += 1.0;
                 }
-            }            
+            }
 
             let cell_count: u32 = expression.iter().map(|&x| x as u32).sum();
             total_molecules += cell_count;
@@ -1535,7 +1536,10 @@ pub fn matrix_reader(
     }
 
     println!("\n");
-    println!("Maximum tier3 gene presence {:?}",tier_count_vec.iter().max());
+    println!(
+        "Maximum tier3 gene presence {:?}",
+        tier_count_vec.iter().max()
+    );
 
     // assert!(
     //     expressions.len() == num_cells,
@@ -1548,8 +1552,8 @@ pub fn matrix_reader(
         "w/ {:.2} Molecules/cell",
         total_molecules as f32 / num_cells as f32
     );
- 
-    for j in 0..num_genes{
+
+    for j in 0..num_genes {
         if gene_expression_count[j] > 0f32 {
             tier_fraction_vec[j] = tier_count_vec[j] as f32 / gene_expression_count[j];
         }
@@ -1560,7 +1564,6 @@ pub fn matrix_reader(
 
     Ok(true)
 }
-
 
 pub fn parse_bfh(
     alevin_info: &AlevinMetaData,
@@ -1619,7 +1622,7 @@ pub fn parse_bfh(
 
     // convert the transcripts to gene maps
     let mut tnames = Vec::<String>::with_capacity(num_targets);
-    for _ in 0..num_targets{
+    for _ in 0..num_targets {
         buf.clear();
         buf_reader
             .read_line(&mut buf)
@@ -1629,7 +1632,7 @@ pub fn parse_bfh(
     }
     // reads cell names
     let mut cnames = Vec::<String>::with_capacity(num_cells);
-    for _ in 0..num_cells{
+    for _ in 0..num_cells {
         buf.clear();
         buf_reader
             .read_line(&mut buf)
@@ -1683,17 +1686,17 @@ pub fn parse_bfh(
             }
             // number of umi,count pair
             let num_umi: usize = iter.next().unwrap().parse().unwrap();
-            for _ in 0..num_umi{
+            for _ in 0..num_umi {
                 let _umi_seq = iter.next();
                 let _umi_cnt = iter.next();
             }
         }
         // add the class
-        if gene_labels.len() > 1{
+        if gene_labels.len() > 1 {
             exp.add_class(&mut gene_labels, &mut cell_ids, tot_num_reads);
             num_class_added += 1;
         }
-        if j % 100 == 0{
+        if j % 100 == 0 {
             print!("\r Done Reading {} equivalence classes", j);
             io::stdout().flush()?;
         }
@@ -1709,7 +1712,7 @@ pub fn bfh_to_graph(
     exp: &BFHEqClassExperiment,
     tier_fraction_vec: &[f32],
     alevin_info: &AlevinMetaData,
-    thresh: f32, 
+    thresh: f32,
 ) -> pg::Graph<usize, ShortEdgeInfo, petgraph::Undirected> {
     println!("\n------------------Building Gene-level graph--------------------");
 

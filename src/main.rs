@@ -340,10 +340,11 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let dname: String = sub_m.value_of("dir").unwrap().to_string();
     let out_dname: String = sub_m.value_of("out").unwrap().to_string();
     let t2g_file = PathBuf::from(sub_m.value_of("transcript2gene").unwrap().to_string());
-    let threshold = sub_m.value_of("threshold-fraction")
-                         .unwrap()
-                         .parse::<f32>()
-                         .expect("could not convert threshold-fraction to float value");
+    let threshold = sub_m
+        .value_of("threshold-fraction")
+        .unwrap()
+        .parse::<f32>()
+        .expect("could not convert threshold-fraction to float value");
 
     // read alevin output
     let mut alevin_exp = salmon_types::AlevinMetaData::new(dname);
@@ -368,12 +369,10 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     )?;
 
     // read bfh file
-    let bfh_classes =
-        util::parse_bfh(&alevin_exp, &t2g_file).expect("Reading bfh class failed");
+    let bfh_classes = util::parse_bfh(&alevin_exp, &t2g_file).expect("Reading bfh class failed");
 
     // construct gene level graph
-    let gr = util::bfh_to_graph(&bfh_classes, &tier_fraction_vec, &alevin_exp, 
-        threshold);
+    let gr = util::bfh_to_graph(&bfh_classes, &tier_fraction_vec, &alevin_exp, threshold);
 
     let mut num_connected_components = 0;
 
