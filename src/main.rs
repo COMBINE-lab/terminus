@@ -340,6 +340,10 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let dname: String = sub_m.value_of("dir").unwrap().to_string();
     let out_dname: String = sub_m.value_of("out").unwrap().to_string();
     let t2g_file = PathBuf::from(sub_m.value_of("transcript2gene").unwrap().to_string());
+    let threshold = sub_m.value_of("threshold-fraction")
+                         .unwrap()
+                         .parse::<f32>()
+                         .expect("could not convert threshold-fraction to float value");
 
     // read alevin output
     let mut alevin_exp = salmon_types::AlevinMetaData::new(dname);
@@ -351,27 +355,27 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     );
     // read alevin matrix
     // extract the tier 3 fraction
-    let mut bit_vecs: Vec<Vec<u8>> = Vec::new();
-    let mut tiers: Vec<Vec<u8>> = Vec::new();
     let mut tier_fraction_vec: Vec<f32> = vec![0.0 as f32; alevin_exp.num_of_features];
+    // how many cells the gene has been expressed
+    let mut gene_expression_count: Vec<f32> = vec![0.0 as f32; alevin_exp.num_of_features];
     util::matrix_reader(
         alevin_exp.tier_file.to_str().unwrap(),
+        alevin_exp.quant_file.to_str().unwrap(),
         alevin_exp.num_of_cells,
         alevin_exp.num_of_features,
-        &mut tiers,
-        &mut bit_vecs,
         &mut tier_fraction_vec,
+        &mut gene_expression_count,
     )?;
 
     // read bfh file
     let bfh_classes =
-        util::parse_bfh(&alevin_exp, &t2g_file, &tiers).expect("Reading bfh class failed");
+        util::parse_bfh(&alevin_exp, &t2g_file).expect("Reading bfh class failed");
 
     // construct gene level graph
-    let gr = util::bfh_to_graph(&bfh_classes, &tier_fraction_vec, &alevin_exp);
+    let gr = util::bfh_to_graph(&bfh_classes, &tier_fraction_vec, &alevin_exp, 
+        threshold);
 
-    let num_connected_components = connected_components(&gr);
-    println!("#Connected components {:?}", num_connected_components);
+    let mut num_connected_components = 0;
 
     let mut comps: Vec<Vec<_>> = tarjan_scc(&gr);
     comps.sort_by(|v, w| v.len().cmp(&w.len()));
@@ -382,6 +386,7 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut gfile = File::create(group_file)?;
     for (_i, comp) in comps.iter().enumerate() {
         if comp.len() != 1 {
+            num_connected_components += 1;
             let mut member_names: Vec<String> = Vec::with_capacity(comp.len());
             for g in comp.iter() {
                 let node_ind = g.index();
@@ -390,6 +395,7 @@ fn alevin_processing(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             writeln!(gfile, "{}", member_names.join(","))?;
         }
     }
+    println!("#Connected components {:?}", num_connected_components);
 
     Ok(true)
 }
@@ -507,6 +513,15 @@ fn main() -> io::Result<()> {
                     .required(true)
                     .takes_value(true)
                     .help("directory to read input from")
+            )
+            .arg(
+                Arg::with_name("threshold-fraction")
+                    .long("threshold-fraction")
+                    .short("h")
+                    .takes_value(true)
+                    .default_value("0.5")
+                    .help("Ratio of number of cells where the gene \
+                          has to be in tier 3 in order to be considered")
             )
             .arg(
                 Arg::with_name("out")

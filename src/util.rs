@@ -1415,52 +1415,115 @@ pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Err
     // make graph from these
 }
 
+// alevin part of the equivalence classes
+// ------------------------------------------------
+// https://github.com/COMBINE-lab/alevin-tools/tree/master/alvtools
+// https://github.com/COMBINE-lab/EDS/blob/master/src-rs/src/
+
 pub fn matrix_reader(
-    input: &str,
+    tier_input: &str,
+    quant_input: &str,
     num_cells: usize,
     num_genes: usize,
-    expressions: &mut Vec<Vec<u8>>,
-    bit_vecs: &mut Vec<Vec<u8>>,
     tier_fraction_vec: &mut Vec<f32>,
+    gene_expression_count: &mut Vec<f32>,
 ) -> Result<bool, io::Error> {
-    println!("Using {} as input EDS file\n", input);
+    println!("Using {} as input tier file and {} as quant file\n", 
+            tier_input, quant_input);
     println!(
         "Using {} Rows (cells) and {} Columns (features)",
         num_cells, num_genes
     );
 
+    let mut tier_count_vec = vec![0u32 ; num_genes];
     let num_bit_vecs: usize = round::ceil(num_genes as f64 / 8.0, 0) as usize;
     let mut total_molecules = 0;
     let mut total_exp_values = 0;
+    
+    println!("\n------------------Computing tier 3 genes--------------------");
 
     {
         let mut count = 0;
-        let file_handle = File::open(input)?;
+        let file_handle = File::open(tier_input)?;
         let mut file = GzDecoder::new(file_handle);
+
+        let quant_file_handle = File::open(quant_input)?;
+        let mut quant_file = GzDecoder::new(quant_file_handle);
 
         for _ in 0..num_cells {
             let mut bit_vec = vec![0; num_bit_vecs];
             file.read_exact(&mut bit_vec[..])?;
+           
+            let mut bit_vec_dum = vec![0; num_bit_vecs];
+            quant_file.read_exact(&mut bit_vec_dum[..])?;
+
             let mut num_ones = 0;
             for bits in bit_vec.iter() {
                 num_ones += bits.count_ones();
             }
-            bit_vecs.push(bit_vec);
 
-            //let mut expression: Vec<u8> = vec![0; 4 * (num_ones as usize)];
-            //let mut float_buffer: Vec<f32> = vec![0.0_f32; num_ones as usize];
-            //file.read_exact(&mut expression[..])?;
+            let mut num_ones_dum = 0;
+            for bits in bit_vec_dum.iter() {
+                num_ones_dum += bits.count_ones();
+            }
 
+            // read_tier
             let mut expression: Vec<u8> = vec![0; num_ones as usize];
-
             file.read_exact(&mut expression[..])?;
+
+
+            // read gene_expression
+            let mut gene_expression: Vec<u8> = vec![0; 4 * (num_ones_dum as usize)];
+            let mut float_buffer: Vec<f32> = vec![0.0_f32; num_ones_dum as usize];
+            quant_file.read_exact(&mut gene_expression[..])?;
+            LittleEndian::read_f32_into(&gene_expression, &mut float_buffer);
+
+            let mut fids: Vec<usize> = Vec::new();
+            for (feature_id, flag) in bit_vec.iter().enumerate() {
+                if *flag != 0 {
+                    for (offset, j) in format!("{:8b}", flag).chars().enumerate() {
+                        if let '1' = j {
+                            fids.push((8 * feature_id) + offset)
+                        }
+                    }
+                }
+            }
+
+            for (index, count) in expression.iter_mut().enumerate() {
+                assert!(
+                    fids[index] < num_genes,
+                    format!("{} position > {}", fids[index], num_genes)
+                );
+    
+                if *count == 3u8 {
+                    tier_count_vec[fids[index]] += 1u32;
+                }
+            }            
+            
+            let mut fids_dum: Vec<usize> = Vec::new();
+            for (feature_id, flag) in bit_vec_dum.iter().enumerate() {
+                if *flag != 0 {
+                    for (offset, j) in format!("{:8b}", flag).chars().enumerate() {
+                        if let '1' = j {
+                            fids_dum.push((8 * feature_id) + offset)
+                        }
+                    }
+                }
+            }
+
+            for (index, count) in float_buffer.iter_mut().enumerate() {
+                assert!(
+                    fids_dum[index] < num_genes,
+                    format!("{} position > {}", fids_dum[index], num_genes)
+                );
+    
+                if *count > 0f32 {
+                    gene_expression_count[fids[index]] += 1.0;
+                }
+            }            
 
             let cell_count: u32 = expression.iter().map(|&x| x as u32).sum();
             total_molecules += cell_count;
-
-            //expr.slice_mut(s![i as usize, ..])
-            //    .assign(&Array::from(expression));
-            expressions.push(expression);
 
             count += 1;
             total_exp_values += num_ones;
@@ -1472,10 +1535,12 @@ pub fn matrix_reader(
     }
 
     println!("\n");
-    assert!(
-        expressions.len() == num_cells,
-        "rows and quants file size mismatch"
-    );
+    println!("Maximum tier3 gene presence {:?}",tier_count_vec.iter().max());
+
+    // assert!(
+    //     expressions.len() == num_cells,
+    //     "rows and quants file size mismatch"
+    // );
 
     println!("Found Total {:.2} molecules", total_molecules);
     println!("Found Total {:.2} expressed entries", total_exp_values);
@@ -1483,76 +1548,23 @@ pub fn matrix_reader(
         "w/ {:.2} Molecules/cell",
         total_molecules as f32 / num_cells as f32
     );
-
-    println!("\n------------------Computing tier 3 genes--------------------");
-    for (cell_id, exp) in expressions.iter_mut().enumerate() {
-        let bit_vec = &bit_vecs[cell_id];
-        let mut fids: Vec<usize> = Vec::new();
-
-        for (feature_id, flag) in bit_vec.iter().enumerate() {
-            if *flag != 0 {
-                for (offset, j) in format!("{:8b}", flag).chars().enumerate() {
-                    if let '1' = j {
-                        fids.push((8 * feature_id) + offset)
-                    }
-                }
-            }
+ 
+    for j in 0..num_genes{
+        if gene_expression_count[j] > 0f32 {
+            tier_fraction_vec[j] = tier_count_vec[j] as f32 / gene_expression_count[j];
         }
-
-        assert!(
-            fids.len() == exp.len(),
-            format!(
-                "#positions {} doesn't match with #expressed features {}",
-                fids.len(),
-                exp.len()
-            )
-        );
-        // mtx_data = format!("cell{}", cell_id + 1);
-        let mut zero_counter = 0;
-        for (index, count) in exp.iter_mut().enumerate() {
-            assert!(
-                fids[index] < num_genes,
-                format!("{} position > {}", fids[index], num_genes)
-            );
-
-            while zero_counter != fids[index] {
-                zero_counter += 1;
-                // mtx_data.push_str(&format!(",0"));
-            }
-
-            zero_counter += 1;
-            if *count == 3u8 || *count == 2u8 {
-                tier_fraction_vec[fids[index]] += 1.0;
-            }
-            // mtx_data.push_str(&format!(",{}", count));
-        }
-
-        while zero_counter < num_genes {
-            zero_counter += 1;
-            // mtx_data.push_str(&format!(",0"));
-        }
-        if cell_id % 100 == 0 {
-            print!("\r Done Reading {} cells", cell_id);
-            io::stdout().flush()?;
-        }
-
-        // mtx_data.push_str(&format!("\n"));
-        // file.write_all(mtx_data.as_bytes())?;
+        // else{
+        //     tier_fraction_vec[j] = tier_count_vec[j] as f32;
+        // }
     }
 
-    // for i in &mut tier_fraction_vec {
-    //     *i /= num_cells as f32;
-    // }
-    tier_fraction_vec
-        .iter_mut()
-        .for_each(|i| *i /= num_cells as f32);
     Ok(true)
 }
+
 
 pub fn parse_bfh(
     alevin_info: &AlevinMetaData,
     t2g_file_name: &std::path::Path,
-    _tier_mat: &[Vec<u8>],
 ) -> Result<BFHEqClassExperiment, io::Error> {
     println!("\n------------------Parsing BFH file--------------------");
     // Get transcript to gene mapping
@@ -1628,6 +1640,7 @@ pub fn parse_bfh(
 
     exp.neq = neq;
 
+    let mut num_class_added = 0u32 ;
     for j in 0..neq {
         buf.clear();
         buf_reader
@@ -1676,12 +1689,17 @@ pub fn parse_bfh(
             }
         }
         // add the class
-        exp.add_class(&mut gene_labels, &mut cell_ids, tot_num_reads);
+        if gene_labels.len() > 1{
+            exp.add_class(&mut gene_labels, &mut cell_ids, tot_num_reads);
+            num_class_added += 1;
+        }
         if j % 100 == 0 {
             print!("\r Done Reading {} equivalence classes", j);
             io::stdout().flush()?;
         }
     }
+
+    println!("\n\nNumber of equivalence classes {:?}", num_class_added);
 
     Ok(exp)
 }
@@ -1691,6 +1709,7 @@ pub fn bfh_to_graph(
     exp: &BFHEqClassExperiment,
     tier_fraction_vec: &[f32],
     alevin_info: &AlevinMetaData,
+    thresh : f32, 
 ) -> pg::Graph<usize, ShortEdgeInfo, petgraph::Undirected> {
     println!("\n------------------Building Gene-level graph--------------------");
 
@@ -1725,12 +1744,15 @@ pub fn bfh_to_graph(
         let _cells = x.1;
         let read_count = x.2;
 
+        if ns.len() == 1 as usize {
+            continue;
+        }
         // only keep genes with low
         // confidence
-        let thresh: f32 = 0.0;
+        // let thresh: f32 = 0.0;
         let retained: std::vec::Vec<usize> = (0..ns.len())
             .filter_map(|j| {
-                if tier_fraction_vec[j as usize] > thresh {
+                if tier_fraction_vec[ns[j] as usize] > thresh {
                     Some(ns[j] as usize)
                 } else {
                     None
