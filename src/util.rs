@@ -1619,7 +1619,7 @@ pub fn parse_bfh(
 
     // convert the transcripts to gene maps
     let mut tnames = Vec::<String>::with_capacity(num_targets);
-    for _ in 0..num_targets {
+    for _ in 0..num_targets{
         buf.clear();
         buf_reader
             .read_line(&mut buf)
@@ -1629,7 +1629,7 @@ pub fn parse_bfh(
     }
     // reads cell names
     let mut cnames = Vec::<String>::with_capacity(num_cells);
-    for _ in 0..num_cells {
+    for _ in 0..num_cells{
         buf.clear();
         buf_reader
             .read_line(&mut buf)
@@ -1640,7 +1640,7 @@ pub fn parse_bfh(
 
     exp.neq = neq;
 
-    let mut num_class_added = 0u32 ;
+    let mut num_class_added = 0u32;
     for j in 0..neq {
         buf.clear();
         buf_reader
@@ -1683,7 +1683,7 @@ pub fn parse_bfh(
             }
             // number of umi,count pair
             let num_umi: usize = iter.next().unwrap().parse().unwrap();
-            for _ in 0..num_umi {
+            for _ in 0..num_umi{
                 let _umi_seq = iter.next();
                 let _umi_cnt = iter.next();
             }
@@ -1693,7 +1693,7 @@ pub fn parse_bfh(
             exp.add_class(&mut gene_labels, &mut cell_ids, tot_num_reads);
             num_class_added += 1;
         }
-        if j % 100 == 0 {
+        if j % 100 == 0{
             print!("\r Done Reading {} equivalence classes", j);
             io::stdout().flush()?;
         }
@@ -1709,7 +1709,7 @@ pub fn bfh_to_graph(
     exp: &BFHEqClassExperiment,
     tier_fraction_vec: &[f32],
     alevin_info: &AlevinMetaData,
-    thresh : f32, 
+    thresh: f32, 
 ) -> pg::Graph<usize, ShortEdgeInfo, petgraph::Undirected> {
     println!("\n------------------Building Gene-level graph--------------------");
 
