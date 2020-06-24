@@ -277,7 +277,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
     // if t2g exists also dumps gene level groups
     let transcript2gene  = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
-    println!("transcript2gene file: {:?}", transcript2gene.to_str());
+    println!("transcript2gene file: {:?}", transcript2gene.to_str().unwrap());
     if transcript2gene.as_path().is_file()
     {
         // get name of the transcripts from any directory
@@ -285,6 +285,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         let mut t2gmap: HashMap<String, String> = HashMap::new();
         let mut genemap: HashMap<String, u32> = HashMap::new();
         let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
+        println!("{} genes exist in the file", genenames.len());
 
         let file_list = salmon_types::FileList::new((dir_paths[0]).to_string());
         let x = util::parse_json(&file_list.mi_file).unwrap();
@@ -336,6 +337,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         // components
         let mut comps_gene: Vec<Vec<_>> = tarjan_scc(&global_gene_graph);
         comps_gene.sort_by(|v, w| v.len().cmp(&w.len()));
+        println!("Done reducing to gene level groups");
         // let mut gfile = File::create(file_list.gene_cluster_file).expect("could not create groups.txt");
         // let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
         dir_paths.clone().into_par_iter().for_each(|dname| {
