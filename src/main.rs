@@ -359,7 +359,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let mut prefix_path = prefix.clone();
             prefix_path.push_str("/");
             prefix_path.push_str(experiment_name);
-            let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
+            let file_list_out = salmon_types::FileList::new(prefix_path);
             let mut gfile = File::create(file_list_out.gene_cluster_file).expect("could not create groups.txt");
             let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
             
