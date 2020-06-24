@@ -331,7 +331,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let nb = genevec[e];
             let va = pg::graph::NodeIndex::new(na as usize);
             let vb = pg::graph::NodeIndex::new(nb as usize);
-            let e = global_filtered_graph.find_edge(va, vb);
+            let e = global_gene_graph.find_edge(va, vb);
             match e {
                 Some(ei) => {
                     let ew = global_gene_graph.edge_weight_mut(ei).expect("edge weight not found");
