@@ -276,10 +276,12 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     );
 
     // if t2g exists also dumps gene level groups
-    let transcript2gene  = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
-    println!("transcript2gene file: {:?}", transcript2gene.to_str().unwrap());
-    if transcript2gene.as_path().is_file()
-    {
+    let transcript2gene = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
+    println!(
+        "transcript2gene file: {:?}",
+        transcript2gene.to_str().unwrap()
+    );
+    if transcript2gene.as_path().is_file() {
         // get name of the transcripts from any directory
         println!("=============Reducing to gene groups=============");
         let mut t2gmap: HashMap<String, String> = HashMap::new();
@@ -289,27 +291,28 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
         let file_list = salmon_types::FileList::new((dir_paths[0]).to_string());
         let x = util::parse_json(&file_list.mi_file).expect("json file could not be parsed");
-        let rec = util::parse_quant(&file_list.quant_file, &x).expect("quant file could not be parsed");
+        let rec =
+            util::parse_quant(&file_list.quant_file, &x).expect("quant file could not be parsed");
 
         let mut genevec: Vec<u32> = vec![0u32; rec.len()];
         let mut genevecpresent: Vec<bool> = vec![false; rec.len()];
         let mut notfound = 0;
-        for i in 0..rec.len(){
+        for i in 0..rec.len() {
             let tname = rec[i].Name.clone();
             // println!("Searching for {:?}", tname);
             match t2gmap.get(&tname) {
-                Some(gname) => {
-                    match genemap.get(gname) {
-                        Some(geneid) => {
-                            genevec[i] = *geneid;
-                            genevecpresent[i] = true;
-                        },
-                        None => {println!("Not found {:?}, {:?}", tname, gname);}
+                Some(gname) => match genemap.get(gname) {
+                    Some(geneid) => {
+                        genevec[i] = *geneid;
+                        genevecpresent[i] = true;
+                    }
+                    None => {
+                        println!("Not found {:?}, {:?}", tname, gname);
                     }
                 },
                 None => {
                     //println!("transcript name not found {}", tname);
-                    notfound += 1 ;
+                    notfound += 1;
                 }
             }
         }
@@ -331,7 +334,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let end = edge.target().index();
             if !(genevecpresent[source] && genevecpresent[end]) {
                 continue;
-            } 
+            }
             let na = genevec[source];
             let nb = genevec[end];
             let va = pg::graph::NodeIndex::new(na as usize);
@@ -339,14 +342,16 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let e = global_gene_graph.find_edge(va, vb);
             match e {
                 Some(ei) => {
-                    let ew = global_gene_graph.edge_weight_mut(ei).expect("edge weight not found");
+                    let ew = global_gene_graph
+                        .edge_weight_mut(ei)
+                        .expect("edge weight not found");
                     *ew += 1;
                 }
                 None => {
                     global_gene_graph.add_edge(va, vb, 1);
                 }
             }
-        } 
+        }
         // components
         let mut comps_gene: Vec<Vec<_>> = tarjan_scc(&global_gene_graph);
         comps_gene.sort_by(|v, w| v.len().cmp(&w.len()));
@@ -360,9 +365,9 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             prefix_path.push_str("/");
             prefix_path.push_str(experiment_name);
             let file_list_out = salmon_types::FileList::new(prefix_path);
-            let mut gfile = File::create(file_list_out.gene_cluster_file).expect("could not create groups.txt");
+            let mut gfile =
+                File::create(file_list_out.gene_cluster_file).expect("could not create groups.txt");
             let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
-            
         });
     }
 

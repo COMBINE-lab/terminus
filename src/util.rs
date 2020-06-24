@@ -56,17 +56,19 @@ pub fn group_writer(
 pub fn gene_writer(
     gfile: &mut File,
     components: &[Vec<pg::graph::NodeIndex>],
-    genenames : &[String] 
+    genenames: &[String],
 ) -> Result<bool, io::Error> {
     for (_i, comp) in components.iter().enumerate() {
         if comp.len() > 1 {
-            let strings: Vec<String> = comp.iter().map(|n| genenames[n.index()].to_string()).collect();
+            let strings: Vec<String> = comp
+                .iter()
+                .map(|n| genenames[n.index()].to_string())
+                .collect();
             writeln!(gfile, "{}", strings.join(","))?;
         }
     }
     Ok(true)
 }
-
 
 pub fn write_quants_from_components(
     components: &[Vec<pg::graph::NodeIndex>],
@@ -371,15 +373,14 @@ pub fn get_t2g(
         assert!(!transcript.is_empty(), "transcript name is empty");
         assert!(!gene.is_empty(), "gene name is empty");
         t2gmap.insert(transcript.clone(), gene.clone());
-        if !genemap.contains_key(&gene){
-            genemap.insert(gene.clone(),gene_id);
+        if !genemap.contains_key(&gene) {
+            genemap.insert(gene.clone(), gene_id);
             gene_id += 1;
             genenames.push(gene.clone());
         }
     }
     genenames
 }
-
 
 #[allow(dead_code)]
 pub fn group_reader(filename: &std::path::Path) -> Vec<Vec<usize>> {
