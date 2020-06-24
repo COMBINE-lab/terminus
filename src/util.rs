@@ -364,10 +364,12 @@ pub fn get_t2g(
 
     let mut gene_id = 0;
     for (_i, l) in buf_reader.lines().enumerate() {
-        let s = l.unwrap();
+        let s = l.expect("Can't read line");
         let mut iter = s.split_ascii_whitespace();
-        let transcript: String = iter.next().unwrap().to_string();
-        let gene: String = iter.next().unwrap().to_string();
+        let transcript: String = iter.next().expect("expect transcript name").to_string();
+        let gene: String = iter.next().expect("expect gene name").to_string();
+        assert!(!transcript.is_empty(), "transcript name is empty");
+        assert!(!gene.is_empty(), "gene name is empty");
         t2gmap.insert(transcript.clone(), gene.clone());
         if !genemap.contains_key(&gene){
             genemap.insert(gene.clone(),gene_id);
