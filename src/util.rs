@@ -358,7 +358,7 @@ pub fn get_t2g(
     genemap: &mut HashMap<String, u32>,
     t2gmap: &mut HashMap<String, String>,
 ) -> Vec<String> {
-    let file = File::open(filename).unwrap();
+    let file = File::open(filename).expect("File could not be opened");
     let buf_reader = BufReader::new(file);
     let mut genenames = Vec::<String>::new();
 

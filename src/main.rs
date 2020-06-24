@@ -288,10 +288,11 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         println!("{} genes exist in the file", genenames.len());
 
         let file_list = salmon_types::FileList::new((dir_paths[0]).to_string());
-        let x = util::parse_json(&file_list.mi_file).unwrap();
-        let rec = util::parse_quant(&file_list.quant_file, &x).unwrap();
+        let x = util::parse_json(&file_list.mi_file).expect("json file could not be parsed");
+        let rec = util::parse_quant(&file_list.quant_file, &x).expect("quant file could not be parsed");
 
         let mut genevec: Vec<u32> = vec![0u32; rec.len()];
+        let mut notfound = 0;
         for i in 0..rec.len(){
             let tname = rec[i].Name.clone();
             // println!("Searching for {:?}", tname);
@@ -304,8 +305,14 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                         None => {println!("Not found {:?}, {:?}", tname, gname);}
                     }
                 },
-                None => {}
+                None => {
+                    //println!("transcript name not found {}", tname);
+                    notfound += 1 ;
+                }
             }
+        }
+        if notfound > 0 {
+            println!("{} transcripts not in t2g", notfound);
         }
         let mut global_gene_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
         if global_gene_graph.node_count() == 0 {
@@ -316,6 +323,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                 debug_assert_eq!(i as usize, idx.index());
             }
         }
+        println!("Initial graph constructed");
         for edge in global_filtered_graph.raw_edges() {
             let s = edge.source().index();
             let e = edge.target().index();
@@ -326,7 +334,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let e = global_filtered_graph.find_edge(va, vb);
             match e {
                 Some(ei) => {
-                    let ew = global_gene_graph.edge_weight_mut(ei).unwrap();
+                    let ew = global_gene_graph.edge_weight_mut(ei).expect("edge weight not found");
                     *ew += 1;
                 }
                 None => {
