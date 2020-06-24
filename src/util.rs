@@ -53,6 +53,21 @@ pub fn group_writer(
     Ok(true)
 }
 
+pub fn gene_writer(
+    gfile: &mut File,
+    components: &[Vec<pg::graph::NodeIndex>],
+    genenames : &[String] 
+) -> Result<bool, io::Error> {
+    for (_i, comp) in components.iter().enumerate() {
+        if comp.len() > 1 {
+            let strings: Vec<String> = comp.iter().map(|n| genenames[n.index()].to_string()).collect();
+            writeln!(gfile, "{}", strings.join(","))?;
+        }
+    }
+    Ok(true)
+}
+
+
 pub fn write_quants_from_components(
     components: &[Vec<pg::graph::NodeIndex>],
     file_list: &FileList,
@@ -336,6 +351,33 @@ pub fn get_ambig(filename: &std::path::Path) -> Vec<u32> {
     }
     only_ambig
 }
+
+#[allow(dead_code)]
+pub fn get_t2g(
+    filename: &std::path::Path,
+    genemap: &mut HashMap<String, u32>,
+    t2gmap: &mut HashMap<String, String>,
+) -> Vec<String> {
+    let file = File::open(filename).unwrap();
+    let buf_reader = BufReader::new(file);
+    let mut genenames = Vec::<String>::new();
+
+    let mut gene_id = 0;
+    for (_i, l) in buf_reader.lines().enumerate() {
+        let s = l.unwrap();
+        let mut iter = s.split_ascii_whitespace();
+        let transcript: String = iter.next().unwrap().to_string();
+        let gene: String = iter.next().unwrap().to_string();
+        t2gmap.insert(transcript.clone(), gene.clone());
+        if !genemap.contains_key(&gene){
+            genemap.insert(gene.clone(),gene_id);
+            gene_id += 1;
+            genenames.push(gene.clone());
+        }
+    }
+    genenames
+}
+
 
 #[allow(dead_code)]
 pub fn group_reader(filename: &std::path::Path) -> Vec<Vec<usize>> {

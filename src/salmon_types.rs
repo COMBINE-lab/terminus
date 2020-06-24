@@ -18,6 +18,7 @@ pub struct FileList {
     pub group_file: PathBuf,
     pub delta_file: PathBuf,
     pub cluster_file: PathBuf,
+    pub gene_cluster_file: PathBuf,
 }
 
 // construct the files
@@ -62,6 +63,7 @@ impl FileList {
             collapsed_log_file: dir.as_path().join("collapsed.log"),
             group_file: dir.as_path().join("groups.txt"),
             delta_file: dir.as_path().join("delta.log"),
+            gene_cluster_file: dir.as_path().join("gene_cluster.log"),
         }
     }
 }

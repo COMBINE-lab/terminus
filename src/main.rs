@@ -14,6 +14,7 @@ use petgraph as pg;
 use petgraph::algo::{connected_components, tarjan_scc};
 use petgraph::unionfind::UnionFind;
 use rayon::prelude::*;
+use std::path::PathBuf;
 
 // Name of the program, to be used in diagnostic messages.
 static PROGRAM_NAME: &str = "terminus";
@@ -274,6 +275,82 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         },
     );
 
+    // if t2g exists also dumps gene level groups
+    let transcript2gene  = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
+    println!("transcript2gene file: {:?}", transcript2gene.to_str());
+    if transcript2gene.as_path().is_file()
+    {
+        // get name of the transcripts from any directory
+        println!("=============Reducing to gene groups=============");
+        let mut t2gmap: HashMap<String, String> = HashMap::new();
+        let mut genemap: HashMap<String, u32> = HashMap::new();
+        let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
+
+        let file_list = salmon_types::FileList::new((dir_paths[0]).to_string());
+        let x = util::parse_json(&file_list.mi_file).unwrap();
+        let rec = util::parse_quant(&file_list.quant_file, &x).unwrap();
+
+        let mut genevec: Vec<u32> = vec![0u32; rec.len()];
+        for i in 0..rec.len(){
+            let tname = rec[i].Name.clone();
+            // println!("Searching for {:?}", tname);
+            match t2gmap.get(&tname) {
+                Some(gname) => {
+                    match genemap.get(gname) {
+                        Some(geneid) => {
+                            genevec[i] = *geneid;
+                        },
+                        None => {println!("Not found {:?}, {:?}", tname, gname);}
+                    }
+                },
+                None => {}
+            }
+        }
+        let mut global_gene_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
+        if global_gene_graph.node_count() == 0 {
+            for i in 0..genenames.len() {
+                let idx = global_gene_graph.add_node(i as usize);
+                // the index assigned by the graph should be the
+                // order in which we add these
+                debug_assert_eq!(i as usize, idx.index());
+            }
+        }
+        for edge in global_filtered_graph.raw_edges() {
+            let s = edge.source().index();
+            let e = edge.target().index();
+            let na = genevec[s];
+            let nb = genevec[e];
+            let va = pg::graph::NodeIndex::new(na as usize);
+            let vb = pg::graph::NodeIndex::new(nb as usize);
+            let e = global_filtered_graph.find_edge(va, vb);
+            match e {
+                Some(ei) => {
+                    let ew = global_gene_graph.edge_weight_mut(ei).unwrap();
+                    *ew += 1;
+                }
+                None => {
+                    global_gene_graph.add_edge(va, vb, 1);
+                }
+            }
+        } 
+        // components
+        let mut comps_gene: Vec<Vec<_>> = tarjan_scc(&global_gene_graph);
+        comps_gene.sort_by(|v, w| v.len().cmp(&w.len()));
+        // let mut gfile = File::create(file_list.gene_cluster_file).expect("could not create groups.txt");
+        // let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
+        dir_paths.clone().into_par_iter().for_each(|dname| {
+            let compo: Vec<&str> = dname.rsplit('/').collect();
+            let experiment_name = compo[0];
+            let mut prefix_path = prefix.clone();
+            prefix_path.push_str("/");
+            prefix_path.push_str(experiment_name);
+            let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
+            let mut gfile = File::create(file_list_out.gene_cluster_file).expect("could not create groups.txt");
+            let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
+            
+        });
+    }
+
     // components
     let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
     comps.sort_by(|v, w| v.len().cmp(&w.len()));
@@ -411,6 +488,14 @@ fn main() -> io::Result<()> {
                     .takes_value(true)
                     .requires("dirs")
                     .help("prefix where output would be written")
+            )
+            .arg(
+                Arg::with_name("t2g")
+                    .long("t2g")
+                    .takes_value(true)
+                    .requires("dirs")
+                    .default_value("")
+                    .help("use this to group to genes")
             )
             .arg(
                 Arg::with_name("threads")
