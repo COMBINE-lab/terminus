@@ -292,6 +292,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         let rec = util::parse_quant(&file_list.quant_file, &x).expect("quant file could not be parsed");
 
         let mut genevec: Vec<u32> = vec![0u32; rec.len()];
+        let mut genevecpresent: Vec<bool> = vec![false; rec.len()];
         let mut notfound = 0;
         for i in 0..rec.len(){
             let tname = rec[i].Name.clone();
@@ -301,6 +302,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                     match genemap.get(gname) {
                         Some(geneid) => {
                             genevec[i] = *geneid;
+                            genevecpresent[i] = true;
                         },
                         None => {println!("Not found {:?}, {:?}", tname, gname);}
                     }
@@ -312,7 +314,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             }
         }
         if notfound > 0 {
-            println!("{} transcripts not in t2g", notfound);
+            println!("{} transcripts not in {:?}", notfound, transcript2gene);
         }
         let mut global_gene_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
         if global_gene_graph.node_count() == 0 {
@@ -325,10 +327,13 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         }
         println!("Initial graph constructed");
         for edge in global_filtered_graph.raw_edges() {
-            let s = edge.source().index();
-            let e = edge.target().index();
-            let na = genevec[s];
-            let nb = genevec[e];
+            let source = edge.source().index();
+            let end = edge.target().index();
+            if !(genevecpresent[source] && genevecpresent[end]) {
+                continue;
+            } 
+            let na = genevec[source];
+            let nb = genevec[end];
             let va = pg::graph::NodeIndex::new(na as usize);
             let vb = pg::graph::NodeIndex::new(nb as usize);
             let e = global_gene_graph.find_edge(va, vb);
