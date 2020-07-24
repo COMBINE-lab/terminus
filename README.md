@@ -35,7 +35,7 @@ from the top-level directory of this repository.  This will produce an executabl
 How to use terminus
 -------------------
 
-Terminus has two sub-commands, `group` and `collapse`. For detailed tutorial and usage please visit the [tutotial](https://combine-lab.github.io/terminus-tutorial/2020/running-terminus/) or the [documentation](https://terminus.readthedocs.io/en/latest/).
+Terminus has two sub-commands, `group` and `collapse`. For detailed tutorial and usage please visit the [tutorial](https://combine-lab.github.io/terminus-tutorial/2020/running-terminus/) or the [documentation](https://terminus.readthedocs.io/en/latest/).
 
 Authors
 -------
