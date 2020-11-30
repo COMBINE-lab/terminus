@@ -1415,6 +1415,8 @@ pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Err
 
     let mut tnames = Vec::<String>::with_capacity(num_target);
 
+    println!("Number of transcript {}, number of equivalence classes {}",num_target, num_eq);
+
     for _ in 0..num_target {
         buf.clear();
         buf_reader
