@@ -151,7 +151,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             println!("{} transcripts not in {:?}", notfound, transcript2gene);
         }
         true
-    }else{
+    } else {
         false
     };
 
