@@ -116,9 +116,9 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     }
 
     let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
-    let mut asemode: bool = false;
+    // let mut asemode: bool = false;
 
-    if transcript2gene.as_path().is_file() {
+    let asemode = if transcript2gene.as_path().is_file() {
         let mut t2gmap: HashMap<String, String> = HashMap::new();
         let mut genemap: HashMap<String, u32> = HashMap::new();
         let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
@@ -150,8 +150,10 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         if notfound > 0 {
             println!("{} transcripts not in {:?}", notfound, transcript2gene);
         }
-        asemode = true;
-    }
+        true
+    }else{
+        false
+    };
 
     let inf_perc = 0.25f64;
     let p = util::get_infrv_percentile(&gibbs_array, inf_perc);

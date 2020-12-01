@@ -779,7 +779,7 @@ pub fn eq_experiment_to_graph(
                     println!("{},{}", p.len(), p[0]);
                 }
                 let mut tlist = p.to_vec();
-                tlist.sort();
+                tlist.sort_unstable();
                 let source = tlist[0];
                 for t in tlist.iter().skip(1) {
                     let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
