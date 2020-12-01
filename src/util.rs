@@ -984,10 +984,14 @@ fn intersect<T: std::cmp::PartialOrd + std::cmp::Ord + Copy>(a: &[T], b: &[T]) -
         if *(va.unwrap()) < *(vb.unwrap()) {
             va = ia.next();
         } else {
-            let not_less_or_equal = match (*vb.unwrap()).partial_cmp(&*(va.unwrap())) {
-                None | Some(Ordering::Equal) | Some(Ordering::Greater) => true,
-                _ => false,
-            };
+            // let not_less_or_equal = match (*vb.unwrap()).partial_cmp(&*(va.unwrap())) {
+            //     None | Some(Ordering::Equal) | Some(Ordering::Greater) => true,
+            //     _ => false,
+            // };
+            let not_less_or_equal = matches!(
+                (*vb.unwrap()).partial_cmp(&*(va.unwrap())),
+                None | Some(Ordering::Equal) | Some(Ordering::Greater)
+            );
             if not_less_or_equal {
                 out.push(*(va.unwrap()));
                 va = ia.next();
@@ -1012,10 +1016,14 @@ fn union<T: std::cmp::PartialOrd + Copy>(a: &[T], b: &[T]) -> std::vec::Vec<T> {
                 out.push(*(va.unwrap()));
                 va = ia.next();
             } else {
-                let not_less_or_equal = match (*vb.unwrap()).partial_cmp(&*(va.unwrap())) {
-                    None | Some(Ordering::Greater) => true,
-                    _ => false,
-                };
+                let not_less_or_equal = matches!(
+                    (*vb.unwrap()).partial_cmp(&*(va.unwrap())),
+                    None | Some(Ordering::Greater)
+                );
+                // let not_less_or_equal = match (*vb.unwrap()).partial_cmp(&*(va.unwrap())) {
+                //     None | Some(Ordering::Greater) => true,
+                //     _ => false,
+                // };
                 if not_less_or_equal {
                     out.push(*(va.unwrap()));
                     va = ia.next();
@@ -1192,8 +1200,8 @@ pub fn work_on_component(
                     .map(|n| n.clone().index())
                     .collect();
 
-                source_adj.sort();
-                target_adj.sort();
+                source_adj.sort_unstable();
+                target_adj.sort_unstable();
 
                 source_adj.dedup();
                 target_adj.dedup();

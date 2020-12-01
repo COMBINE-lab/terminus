@@ -75,7 +75,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     //println!("{:?}",compo);
     let experiment_name = compo[0];
     let mut prefix_path = prefix;
-    prefix_path.push_str("/");
+    prefix_path.push('/');
     prefix_path.push_str(experiment_name);
     let file_list = salmon_types::FileList::new(dname.to_string());
 
@@ -260,7 +260,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         let experiment_name = compo[0];
         println!("experiment name {}", experiment_name);
         let mut prefix_path = prefix.clone();
-        prefix_path.push_str("/");
+        prefix_path.push('/');
         prefix_path.push_str(experiment_name);
         create_dir_all(prefix_path.clone())?;
         let file_list_out = salmon_types::FileList::new(prefix_path);
@@ -418,7 +418,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let compo: Vec<&str> = dname.rsplit('/').collect();
             let experiment_name = compo[0];
             let mut prefix_path = prefix.clone();
-            prefix_path.push_str("/");
+            prefix_path.push('/');
             prefix_path.push_str(experiment_name);
             let file_list_out = salmon_types::FileList::new(prefix_path);
             let mut gfile =
@@ -456,7 +456,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         let compo: Vec<&str> = dname.rsplit('/').collect();
         let experiment_name = compo[0];
         let mut prefix_path = prefix.clone();
-        prefix_path.push_str("/");
+        prefix_path.push('/');
         prefix_path.push_str(experiment_name);
         let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
         let file_list = salmon_types::FileList::new(dname.to_string());
