@@ -94,9 +94,53 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
     let mut gibbs_mat_mean = gibbs_array.mean_axis(Axis(1)).unwrap();
 
+    // if t2g exists also dumps gene level groups
+    let transcript2gene = PathBuf::from(sub_m.value_of("tg").unwrap().to_string());
+    println!(
+        "transcript2gene file: {:?}",
+        transcript2gene.to_str().unwrap()
+    );
+
+    // take the transcript to gene mapping
+    // this will also create a map from transcript id
+    // to gene id
+    let mut t2gmap: HashMap<String, String> = HashMap::new();
+    let mut genemap: HashMap<String, u32> = HashMap::new();
+    let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
+    println!("{} genes exist in the file", genenames.len());
+
+    let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
+    let mut genevecpresent: Vec<bool> = vec![false; x.num_valid_targets as usize];
+    let mut notfound = 0;
+
     println!("parsing eqfile {:?}", file_list.eq_file);
     let eq_class = util::parse_eq(&file_list.eq_file).unwrap();
     println!("length of eqclass {:?}", eq_class.neq);
+
+    // fill targets from eq_class
+    let tnames = eq_class.targets.clone();
+    for i in 0..tnames.len() {
+        let tname = tnames[i].clone();
+        match t2gmap.get(&tname) {
+            Some(gname) => match genemap.get(gname) {
+                Some(geneid) => {
+                    genevec[i] = *geneid;
+                    genevecpresent[i] = true;
+                }
+                None => {
+                    println!("Not found {:?}, {:?}", tname, gname);
+                }
+            },
+            None => {
+                //println!("transcript name not found {}", tname);
+                notfound += 1;
+            }
+        }
+    }
+    if notfound > 0 {
+        println!("{} transcripts not in {:?}", notfound, transcript2gene);
+    }
+
     let mut eq_class_counts = vec![0 as u32; eq_class.neq];
     let mut i = 0 as usize;
     for eq in eq_class.classes.iter() {
@@ -115,6 +159,9 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut dfile =
         File::create(file_list_out.delta_file.clone()).expect("could not create collapse.log");
     let mut unionfind_struct = UnionFind::new(eq_class.ntarget);
+
+    // pass the gene to transcript mapping to the building graph phase to
+    // restrict the creation of two edge between nodes from the same gene
     let mut gr = util::eq_experiment_to_graph(
         &eq_class,
         &mut gibbs_array,
@@ -125,6 +172,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         min_spread,
         &mut dfile,
         &mut unionfind_struct,
+        &genevec,
     );
     util::verify_graph(&eq_class_counts, &mut gr);
     // Go over the graph and keep collapsing
@@ -477,6 +525,13 @@ fn main() -> io::Result<()> {
                     .default_value("10")
                     .help("The allowable difference between the weights of transcripts \
                           in same equivalence classes to treat them as identical")
+            )
+            .arg(
+                Arg::with_name("tg")
+                    .long("tg")
+                    .takes_value(true)
+                    .default_value("")
+                    .help("use this to prohibit edges across genes")
             )
             .arg(
                 Arg::with_name("out")

@@ -631,6 +631,7 @@ pub fn eq_experiment_to_graph(
     min_spread: f64,
     delta_file: &mut File,
     unionfind_struct: &mut UnionFind<usize>,
+    genevec: &[u32],
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
 
@@ -874,9 +875,15 @@ pub fn eq_experiment_to_graph(
             if na_root != na {
                 na = na_root;
             }
+            let gene_a = genevec[na];
 
             for nb in retained.iter().skip(a + 1) {
                 let mut nbd = *nb as usize;
+                let gene_b = genevec[nbd];
+                if gene_a != gene_b {
+                    continue;
+                }
+
                 let nb_root = unionfind_struct.find(nbd);
                 if nb_root != nbd {
                     nbd = nb_root;
@@ -1415,7 +1422,10 @@ pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Err
 
     let mut tnames = Vec::<String>::with_capacity(num_target);
 
-    println!("Number of transcript {}, number of equivalence classes {}",num_target, num_eq);
+    println!(
+        "Number of transcript {}, number of equivalence classes {}",
+        num_target, num_eq
+    );
 
     for _ in 0..num_target {
         buf.clear();
