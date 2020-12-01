@@ -104,48 +104,53 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // take the transcript to gene mapping
     // this will also create a map from transcript id
     // to gene id
-    let mut t2gmap: HashMap<String, String> = HashMap::new();
-    let mut genemap: HashMap<String, u32> = HashMap::new();
-    let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
-    println!("{} genes exist in the file", genenames.len());
-
-    let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
-    let mut genevecpresent: Vec<bool> = vec![false; x.num_valid_targets as usize];
-    let mut notfound = 0;
 
     println!("parsing eqfile {:?}", file_list.eq_file);
     let eq_class = util::parse_eq(&file_list.eq_file).unwrap();
     println!("length of eqclass {:?}", eq_class.neq);
-
-    // fill targets from eq_class
-    let tnames = eq_class.targets.clone();
-    for i in 0..tnames.len() {
-        let tname = tnames[i].clone();
-        match t2gmap.get(&tname) {
-            Some(gname) => match genemap.get(gname) {
-                Some(geneid) => {
-                    genevec[i] = *geneid;
-                    genevecpresent[i] = true;
-                }
-                None => {
-                    println!("Not found {:?}, {:?}", tname, gname);
-                }
-            },
-            None => {
-                //println!("transcript name not found {}", tname);
-                notfound += 1;
-            }
-        }
-    }
-    if notfound > 0 {
-        println!("{} transcripts not in {:?}", notfound, transcript2gene);
-    }
-
     let mut eq_class_counts = vec![0 as u32; eq_class.neq];
     let mut i = 0 as usize;
     for eq in eq_class.classes.iter() {
         eq_class_counts[i] = eq.2;
         i += 1;
+    }
+
+    let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
+    let mut asemode: bool = false;
+
+    if transcript2gene.as_path().is_file() {
+        let mut t2gmap: HashMap<String, String> = HashMap::new();
+        let mut genemap: HashMap<String, u32> = HashMap::new();
+        let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
+        println!("{} genes exist in the file", genenames.len());
+
+        let mut genevecpresent: Vec<bool> = vec![false; x.num_valid_targets as usize];
+        let mut notfound = 0;
+
+        // fill targets from eq_class
+        let tnames = eq_class.targets.clone();
+        for i in 0..tnames.len() {
+            let tname = tnames[i].clone();
+            match t2gmap.get(&tname) {
+                Some(gname) => match genemap.get(gname) {
+                    Some(geneid) => {
+                        genevec[i] = *geneid;
+                        genevecpresent[i] = true;
+                    }
+                    None => {
+                        println!("Not found {:?}, {:?}", tname, gname);
+                    }
+                },
+                None => {
+                    //println!("transcript name not found {}", tname);
+                    notfound += 1;
+                }
+            }
+        }
+        if notfound > 0 {
+            println!("{} transcripts not in {:?}", notfound, transcript2gene);
+        }
+        asemode = true;
     }
 
     let inf_perc = 0.25f64;
@@ -173,6 +178,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &mut dfile,
         &mut unionfind_struct,
         &genevec,
+        asemode,
     );
     util::verify_graph(&eq_class_counts, &mut gr);
     // Go over the graph and keep collapsing

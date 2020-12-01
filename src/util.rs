@@ -632,6 +632,7 @@ pub fn eq_experiment_to_graph(
     delta_file: &mut File,
     unionfind_struct: &mut UnionFind<usize>,
     genevec: &[u32],
+    asemode: bool,
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
 
@@ -875,13 +876,16 @@ pub fn eq_experiment_to_graph(
             if na_root != na {
                 na = na_root;
             }
-            let gene_a = genevec[na];
 
             for nb in retained.iter().skip(a + 1) {
                 let mut nbd = *nb as usize;
-                let gene_b = genevec[nbd];
-                if gene_a != gene_b {
-                    continue;
+
+                if asemode {
+                    let gene_a = genevec[na];
+                    let gene_b = genevec[nbd];
+                    if gene_a != gene_b {
+                        continue;
+                    }
                 }
 
                 let nb_root = unionfind_struct.find(nbd);
