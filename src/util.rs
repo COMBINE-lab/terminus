@@ -70,6 +70,26 @@ pub fn gene_writer(
     Ok(true)
 }
 
+#[allow(dead_code)]
+pub fn get_merged_mat(
+    gibbs_mat: &Array2<f64>,
+    original_id_to_old_id_map: &HashMap<u32, Vec<u32>>,
+) -> Array2<f64> {
+    let shape = gibbs_mat.shape();
+    let new_width = shape[1];
+    let new_hight = original_id_to_old_id_map.capacity();
+
+    let mut merged_gibbs_mat = Array2::<f64>::zeros((new_hight, new_width));
+
+    for (original_id, txp_id_vec) in original_id_to_old_id_map.iter() {
+        let mut s = merged_gibbs_mat.slice_mut(s![*original_id as usize, ..]);
+        for i in txp_id_vec.iter() {
+            s += &gibbs_mat.index_axis(Axis(0), *i as usize).to_owned();
+        }
+    }
+    merged_gibbs_mat
+}
+
 pub fn write_quants_from_components(
     components: &[Vec<pg::graph::NodeIndex>],
     file_list: &FileList,
@@ -632,6 +652,7 @@ pub fn eq_experiment_to_graph(
     delta_file: &mut File,
     unionfind_struct: &mut UnionFind<usize>,
     genevec: &[u32],
+    original_id_to_old_id_map: &HashMap<u32, Vec<u32>>,
     asemode: bool,
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
@@ -732,11 +753,23 @@ pub fn eq_experiment_to_graph(
             let mut diff = pair_vec[j + 1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap();
             tmp_vec.clear();
             tmp_vec.push(pair_vec[j].0 as usize);
+            // if asemode is on then check for that
+
             while diff < tolerance {
+                if asemode {
+                    // check if j and (j + 1) th transcript belong to the same vector or not
+                    let gene_a = genevec[pair_vec[j].0 as usize];
+                    let gene_b = genevec[pair_vec[j + 1].0 as usize];
+                    if gene_a != gene_b {
+                        break;
+                    }
+                }
                 tmp_vec.push(pair_vec[j + 1].0 as usize);
                 valid_transcripts[pair_vec[j].0 as usize] = true;
                 valid_transcripts[pair_vec[j + 1].0 as usize] = true;
+
                 j += 1;
+
                 if j < pair_vec.len() - 1 {
                     diff = pair_vec[j + 1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap();
                 } else {
@@ -795,6 +828,27 @@ pub fn eq_experiment_to_graph(
     }
     println!("Number of golden collapses {}", golden_collapses);
     println!("The refinery code ran for {:?}", part_start.elapsed());
+
+    // a blanket merge in asemode
+    if asemode {
+        let mut allelic_collapses = 0;
+        for (_original_id, txp_id_vec) in original_id_to_old_id_map.iter() {
+            if txp_id_vec.len() > 1 {
+                let mut tlist = txp_id_vec.clone();
+                tlist.sort_unstable();
+                let source = tlist[0];
+
+                for t in tlist.iter().skip(1) {
+                    let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
+                    let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
+                    s += &to_add;
+                    unionfind_struct.union(source as usize, *t as usize);
+                    allelic_collapses += 1;
+                }
+            }
+        }
+        println!("Number of alleleic collapses {}", allelic_collapses);
+    }
 
     let mut og = pg::Graph::<usize, EdgeInfo, petgraph::Undirected>::new_undirected();
     for (i, _n) in exp.targets.iter().enumerate() {

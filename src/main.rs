@@ -116,6 +116,10 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     }
 
     let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
+    // let mut allele_name_map : HashMap<String, String> = HashMap::new();
+    let mut allele_vec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
+    let mut allele_map: HashMap<String, u32> = HashMap::new();
+    let mut original_id_to_old_id_map: HashMap<u32, Vec<u32>> = HashMap::new();
     // let mut asemode: bool = false;
 
     let asemode = if transcript2gene.as_path().is_file() {
@@ -129,8 +133,33 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
         // fill targets from eq_class
         let tnames = eq_class.targets.clone();
+        let mut global_id = 0u32;
         for i in 0..tnames.len() {
             let tname = tnames[i].clone();
+
+            // The names are as
+            // following
+            // FBtr0112790_M|16647882_2_FBgn0000017_16631403
+            // We create a mapping FBtr0112790_M -> FBtr0112790
+            let splitted_names: Vec<&str> = tname.rsplit('_').collect();
+            let original_name = splitted_names[0].to_string();
+            match allele_map.get(&original_name) {
+                Some(original_id) => {
+                    allele_vec[i] = *original_id;
+                    if let Some(txp_id_vec) = original_id_to_old_id_map.get_mut(original_id) {
+                        txp_id_vec.push(i as u32);
+                    }
+                }
+                None => {
+                    allele_map.insert(original_name.clone(), global_id);
+                    original_id_to_old_id_map.insert(global_id, vec![i as u32]);
+                    allele_vec[i] = global_id;
+                    global_id += 1;
+                }
+            }
+
+            // allele_name_map.insert(tname.clone(), splitted_names[0].to_string());
+
             match t2gmap.get(&tname) {
                 Some(gname) => match genemap.get(gname) {
                     Some(geneid) => {
@@ -180,6 +209,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &mut dfile,
         &mut unionfind_struct,
         &genevec,
+        &original_id_to_old_id_map,
         asemode,
     );
     util::verify_graph(&eq_class_counts, &mut gr);
