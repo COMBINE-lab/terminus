@@ -142,7 +142,7 @@ impl EqList {
 
     pub fn new() -> EqList {
         EqList {
-            offsets: vec![0 as usize],
+            offsets: vec![0_usize],
             labels: Vec::<u32>::new(),
             weights: Vec::<f32>::new(),
             counts: Vec::<u32>::new(),

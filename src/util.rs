@@ -520,8 +520,8 @@ pub fn get_threhold(
 
     let mut starting_num_samples = starting_num_samples as usize;
 
-    let mut old_threshold = 0.0 as f64;
-    let mut new_threshold = 0.0 as f64;
+    let mut old_threshold = 0.0_f64;
+    let mut new_threshold = 0.0_f64;
 
     // let mut rng = thread_rng();
     let mut rng = Pcg64::seed_from_u64(seed);
@@ -531,8 +531,8 @@ pub fn get_threhold(
         let mut roll_die = die_range.sample_iter(&mut rng);
 
         let mut sampled_infrv = vec![OrderedFloat(0.0); starting_num_samples as usize];
-        let mut dice_iter = 0 as usize;
-        let mut mean_sum = 0.0f64;
+        let mut dice_iter = 0_usize;
+        let mut mean_sum = 0.0_f64;
 
         while dice_iter < starting_num_samples as usize {
             let i1 = roll_die.next().unwrap();
@@ -746,7 +746,7 @@ pub fn eq_experiment_to_graph(
 
         //let mut partition_sets = Vec::new();
 
-        let mut j = 0 as usize;
+        let mut j = 0_usize;
         let mut tmp_vec = Vec::with_capacity(ns.len());
 
         while j < pair_vec.len() - 1 {
@@ -1327,7 +1327,7 @@ pub fn work_on_component(
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
-                    let new_state = -1 as i32;
+                    let new_state = -1_i32;
 
                     og.add_edge(
                         source_node,
@@ -1389,7 +1389,7 @@ pub fn work_on_component(
                     let intersecting_eqlist = intersect(&v_to_x_eq, &u_to_x_info.eqlist);
                     let curr_state = u_to_x_info.state;
 
-                    let mut sum = 0 as u32;
+                    let mut sum = 0_u32;
                     for i in intersecting_eqlist.iter() {
                         sum += eq_class_count[*i as usize];
                     }

@@ -108,11 +108,10 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     println!("parsing eqfile {:?}", file_list.eq_file);
     let eq_class = util::parse_eq(&file_list.eq_file).unwrap();
     println!("length of eqclass {:?}", eq_class.neq);
-    let mut eq_class_counts = vec![0 as u32; eq_class.neq];
-    let mut i = 0 as usize;
-    for eq in eq_class.classes.iter() {
+    let mut eq_class_counts = vec![0_u32; eq_class.neq];
+    // let mut i = 0_usize;
+    for (i,eq) in eq_class.classes.iter().enumerate() {
         eq_class_counts[i] = eq.2;
-        i += 1;
     }
 
     let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
@@ -222,7 +221,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let num_connected_components = connected_components(&gr);
     println!("#Connected components {:?}", num_connected_components);
 
-    let mut num_collapses = 0 as usize;
+    let mut num_collapses = 0_usize;
 
     //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
     let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
@@ -315,7 +314,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let v: Vec<_> = s.trim().rsplit(',').collect();
             let group: Vec<usize> = v.iter().map(|n| n.parse::<usize>().unwrap()).collect();
 
-            assert_ne!(group.len(), 1 as usize);
+            assert_ne!(group.len(), 1_usize);
             for g in group.iter() {
                 if *g >= global_graph.node_count() {
                     process::exit(0x0100);
@@ -440,7 +439,8 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         }
         // components
         let mut comps_gene: Vec<Vec<_>> = tarjan_scc(&global_gene_graph);
-        comps_gene.sort_by(|v, w| v.len().cmp(&w.len()));
+        // comps_gene.sort_by(|v, w| v.len().cmp(&w.len()));
+        comps_gene.sort_by_key(|v| v.len());
         println!("Done reducing to gene level groups");
         // let mut gfile = File::create(file_list.gene_cluster_file).expect("could not create groups.txt");
         // let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
@@ -459,7 +459,8 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
     // components
     let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
-    comps.sort_by(|v, w| v.len().cmp(&w.len()));
+    // comps.sort_by(|v, w| v.len().cmp(&w.len()));
+    comps.sort_by_key(|v| v.len());
     // write a json file containing
     // new number of nodes, number of components, etc
     let (total_in_group, num_group) = comps.iter().fold((0, 0), |s, v| {
