@@ -110,7 +110,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     println!("length of eqclass {:?}", eq_class.neq);
     let mut eq_class_counts = vec![0_u32; eq_class.neq];
     // let mut i = 0_usize;
-    for (i,eq) in eq_class.classes.iter().enumerate() {
+    for (i, eq) in eq_class.classes.iter().enumerate() {
         eq_class_counts[i] = eq.2;
     }
 
