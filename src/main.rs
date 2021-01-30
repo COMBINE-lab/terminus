@@ -194,9 +194,12 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut dfile =
         File::create(file_list_out.delta_file.clone()).expect("could not create collapse.log");
     let mut unionfind_struct = UnionFind::new(eq_class.ntarget);
-
-    // pass the gene to transcript mapping to the building graph phase to
-    // restrict the creation of two edge between nodes from the same gene
+    let mut group_order:Vec<String>=Vec::with_capacity(eq_class.ntarget);
+    for i in 0..eq_class.ntarget {
+        group_order.push(i.to_string())
+    }
+    // // pass the gene to transcript mapping to the building graph phase to
+    // // restrict the creation of two edge between nodes from the same gene
     let mut gr = util::eq_experiment_to_graph(
         &eq_class,
         &mut gibbs_array,
@@ -210,58 +213,59 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &genevec,
         &original_id_to_old_id_map,
         asemode,
+        &mut group_order,
     );
-    util::verify_graph(&eq_class_counts, &mut gr);
-    // Go over the graph and keep collapsing
-    // edges until we hit a point where there
-    // are no more edges to that satisfies the criteria
-    // and we collapse
+    // util::verify_graph(&eq_class_counts, &mut gr);
+    // // Go over the graph and keep collapsing
+    // // edges until we hit a point where there
+    // // are no more edges to that satisfies the criteria
+    // // and we collapse
 
-    // connected coponents
-    let num_connected_components = connected_components(&gr);
-    println!("#Connected components {:?}", num_connected_components);
+    // // connected coponents
+    // let num_connected_components = connected_components(&gr);
+    // println!("#Connected components {:?}", num_connected_components);
 
-    let mut num_collapses = 0_usize;
+    // let mut num_collapses = 0_usize;
 
-    //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
-    let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
-        .expect("could not create collapse.log");
+    // //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
+    // let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
+    //     .expect("could not create collapse.log");
 
-    let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
-        .node_indices()
-        .map(|x| petgraph::graph::NodeIndex::new(x.index()))
-        .collect();
-    util::work_on_component(
-        &eq_class_counts,
-        &mut gibbs_array,
-        &mut gibbs_mat_mean,
-        &mut unionfind_struct,
-        &mut gr,
-        &gcomp,
-        &mut num_collapses,
-        thr,
-        p,
-        &mut cfile,
-    );
+    // let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
+    //     .node_indices()
+    //     .map(|x| petgraph::graph::NodeIndex::new(x.index()))
+    //     .collect();
+    // util::work_on_component(
+    //     &eq_class_counts,
+    //     &mut gibbs_array,
+    //     &mut gibbs_mat_mean,
+    //     &mut unionfind_struct,
+    //     &mut gr,
+    //     &gcomp,
+    //     &mut num_collapses,
+    //     thr,
+    //     p,
+    //     &mut cfile,
+    // );
 
-    //write down the groups
-    let mut groups = HashMap::new();
-    //let mut grouped_set = HashSet::new();
-    for i in 0..(x.num_valid_targets as usize) {
-        let root = unionfind_struct.find(i);
-        if root != i {
-            groups.entry(root).or_insert_with(Vec::new).push(i);
-        }
-    }
+    // //write down the groups
+    // let mut groups = HashMap::new();
+    // //let mut grouped_set = HashSet::new();
+    // for i in 0..(x.num_valid_targets as usize) {
+    //     let root = unionfind_struct.find(i);
+    //     if root != i {
+    //         groups.entry(root).or_insert_with(Vec::new).push(i);
+    //     }
+    // }
 
-    // println!("Number of collapsed transcripts from conn components with 2 {}", num_collapses_2.to_formatted_string(&Locale::en));
-    println!(
-        "Number of collapses {}",
-        num_collapses.to_formatted_string(&Locale::en)
-    );
-    //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
-    let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
-    let _write = util::group_writer(&mut gfile, &groups);
+    // // println!("Number of collapsed transcripts from conn components with 2 {}", num_collapses_2.to_formatted_string(&Locale::en));
+    // println!(
+    //     "Number of collapses {}",
+    //     num_collapses.to_formatted_string(&Locale::en)
+    // );
+    // //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
+    // let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
+    // let _write = util::group_writer(&mut gfile, &groups);
 
     Ok(true)
 }

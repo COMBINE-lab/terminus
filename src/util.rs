@@ -640,6 +640,36 @@ pub fn get_variance_fold_change(
 }
 */
 
+fn order_group(mut source: usize, target:usize, group_order: &mut [String]) {
+
+    if group_order[target].ends_with("p"){ //p is to say that this node has been target prior
+        panic!("Transcript already grouped");
+    }
+    if group_order[source].ends_with("p"){
+        while true{
+            let l = group_order[source].len();
+            let t = group_order[source][0..l-1].parse::<usize>().unwrap();
+            if t == source{
+                panic!("Source not linked");
+            }
+            source = t;
+            if ! group_order[source].ends_with("p"){
+                break;
+            }
+            
+        }
+    }
+    
+    let nchar_target = group_order[target].len();
+    group_order[source] = 
+        if nchar_target > 1 {
+            format!("{}gr{}", group_order[target], group_order[source])
+        }
+        else{
+            format!("{}_{}", group_order[source], group_order[target])
+        };
+    group_order[target] = format!("{}{}", source, "p");
+}
 #[allow(dead_code, clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn eq_experiment_to_graph(
     exp: &EqClassExperiment,
@@ -654,6 +684,7 @@ pub fn eq_experiment_to_graph(
     genevec: &[u32],
     original_id_to_old_id_map: &HashMap<u32, Vec<u32>>,
     asemode: bool,
+    group_order: &mut [String]
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
 
