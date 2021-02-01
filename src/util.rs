@@ -639,36 +639,48 @@ pub fn get_variance_fold_change(
    varsum / (infa + infb + 1.)
 }
 */
+pub fn order_group_writer(go_file: &mut File,
+    group_order: & [String],
+    groups: &HashMap<usize, Vec<usize>>)     
+    -> Result<bool, io::Error>{
+    //let go_iter = group_order.iter();
+    for (group_id, group) in groups {        
+        writeln!(go_file, "{}", group_order[*group_id])?;
+    }
+    Ok(true)
+}
 
 fn order_group(mut source: usize, target:usize, group_order: &mut [String]) {
-
-    if group_order[target].ends_with("p"){ //p is to say that this node has been target prior
-        panic!("Transcript already grouped");
-    }
-    if group_order[source].ends_with("p"){
-        while true{
-            let l = group_order[source].len();
-            let t = group_order[source][0..l-1].parse::<usize>().unwrap();
-            if t == source{
-                panic!("Source not linked");
-            }
-            source = t;
-            if ! group_order[source].ends_with("p"){
-                break;
-            }
-            
-        }
-    }
     
-    let nchar_target = group_order[target].len();
+    // if group_order[target].ends_with("p"){ //p is to say that this node has been target prior
+    //     println!("{}_{}",source,target);
+        
+    //     panic!("Transcript already grouped");
+    // }
+    // if group_order[source].ends_with("p"){
+    //     while true{
+    //         let l = group_order[source].len();
+    //         let t = group_order[source][0..l-1].parse::<usize>().unwrap();
+    //         if t == source{
+    //             panic!("Source not linked");
+    //         }
+    //         source = t;
+    //         if ! group_order[source].ends_with("p"){
+    //             break;
+    //         }
+            
+    //     }
+    // }
+    
+    let n_target = group_order[target].rsplit("_").collect::<Vec<_>>().len();
     group_order[source] = 
-        if nchar_target > 1 {
+        if n_target > 1 {
             format!("{}gr{}", group_order[target], group_order[source])
         }
         else{
             format!("{}_{}", group_order[source], group_order[target])
         };
-    group_order[target] = format!("{}{}", source, "p");
+    //group_order[target] = format!("{}{}", source, "p");
 }
 #[allow(dead_code, clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn eq_experiment_to_graph(
@@ -833,6 +845,10 @@ pub fn eq_experiment_to_graph(
         //println!("{:?}",partition_sets);
     }
 
+    // a blanket merge in asemode
+
+
+    
     let part_vec = part.iter().collect::<Vec<_>>();
     let mut golden_collapses = 0;
     for (_, p) in part_vec.iter().enumerate() {
@@ -850,6 +866,7 @@ pub fn eq_experiment_to_graph(
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                     s += &to_add;
                     unionfind_struct.union(source as usize, *t as usize);
+                    order_group(source as usize, *t as usize, group_order);
                     golden_collapses += 1;
                 }
             } else if p.len() > 10 {
@@ -859,8 +876,6 @@ pub fn eq_experiment_to_graph(
     }
     println!("Number of golden collapses {}", golden_collapses);
     println!("The refinery code ran for {:?}", part_start.elapsed());
-
-    // a blanket merge in asemode
     if asemode {
         let mut allelic_collapses = 0;
         for (_original_id, txp_id_vec) in original_id_to_old_id_map.iter() {
@@ -874,6 +889,7 @@ pub fn eq_experiment_to_graph(
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                     s += &to_add;
                     unionfind_struct.union(source as usize, *t as usize);
+                    order_group(source as usize, *t as usize, group_order);
                     allelic_collapses += 1;
                 }
             }
@@ -1167,6 +1183,7 @@ pub fn work_on_component(
     thr: f64,
     infrv_quant: f64,
     cfile: &mut File,
+    group_order: &mut [String]
 ) {
     // make a set of edges to be visited
     let mut infrv_array = infrv(&gibbs_mat, Axis(1));

@@ -120,7 +120,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut allele_map: HashMap<String, u32> = HashMap::new();
     let mut original_id_to_old_id_map: HashMap<u32, Vec<u32>> = HashMap::new();
     // let mut asemode: bool = false;
-
+    
     let asemode = if transcript2gene.as_path().is_file() {
         let mut t2gmap: HashMap<String, String> = HashMap::new();
         let mut genemap: HashMap<String, u32> = HashMap::new();
@@ -184,9 +184,11 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     };
 
     let inf_perc = 0.25f64;
-    let p = util::get_infrv_percentile(&gibbs_array, inf_perc);
+    //let p = util::get_infrv_percentile(&gibbs_array, inf_perc);
+    let p = 2.48675518f64;
     println!("the {}% of infRV was : {}", inf_perc * 100., p);
-    let thr = util::get_threhold(&gibbs_array, p, seed, &file_list_out);
+    //let thr = util::get_threhold(&gibbs_array, p, seed, &file_list_out);
+    let thr = -12.958284980475035f64;
     // thr = thr * 0.75;
     // thr = 0.645;
     println!("threshold: {}", thr);
@@ -198,8 +200,10 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for i in 0..eq_class.ntarget {
         group_order.push(i.to_string())
     }
-    // // pass the gene to transcript mapping to the building graph phase to
-    // // restrict the creation of two edge between nodes from the same gene
+    // println!("{:?}",asemode);
+    // println!("{:?}",original_id_to_old_id_map);
+    // pass the gene to transcript mapping to the building graph phase to
+    // restrict the creation of two edge between nodes from the same gene
     let mut gr = util::eq_experiment_to_graph(
         &eq_class,
         &mut gibbs_array,
@@ -215,57 +219,61 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         asemode,
         &mut group_order,
     );
-    // util::verify_graph(&eq_class_counts, &mut gr);
-    // // Go over the graph and keep collapsing
-    // // edges until we hit a point where there
-    // // are no more edges to that satisfies the criteria
-    // // and we collapse
+    
+    util::verify_graph(&eq_class_counts, &mut gr);
+    // Go over the graph and keep collapsing
+    // edges until we hit a point where there
+    // are no more edges to that satisfies the criteria
+    // and we collapse
 
-    // // connected coponents
-    // let num_connected_components = connected_components(&gr);
-    // println!("#Connected components {:?}", num_connected_components);
+    // connected coponents
+    let num_connected_components = connected_components(&gr);
+    println!("#Connected components {:?}", num_connected_components);
 
-    // let mut num_collapses = 0_usize;
+    let mut num_collapses = 0_usize;
 
-    // //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
-    // let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
-    //     .expect("could not create collapse.log");
+    //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
+    let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
+        .expect("could not create collapse.log");
 
-    // let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
-    //     .node_indices()
-    //     .map(|x| petgraph::graph::NodeIndex::new(x.index()))
-    //     .collect();
-    // util::work_on_component(
-    //     &eq_class_counts,
-    //     &mut gibbs_array,
-    //     &mut gibbs_mat_mean,
-    //     &mut unionfind_struct,
-    //     &mut gr,
-    //     &gcomp,
-    //     &mut num_collapses,
-    //     thr,
-    //     p,
-    //     &mut cfile,
-    // );
+    let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
+        .node_indices()
+        .map(|x| petgraph::graph::NodeIndex::new(x.index()))
+        .collect();
+    util::work_on_component(
+        &eq_class_counts,
+        &mut gibbs_array,
+        &mut gibbs_mat_mean,
+        &mut unionfind_struct,
+        &mut gr,
+        &gcomp,
+        &mut num_collapses,
+        thr,
+        p,
+        &mut cfile,
+        &mut group_order,
+    );
 
     // //write down the groups
-    // let mut groups = HashMap::new();
-    // //let mut grouped_set = HashSet::new();
-    // for i in 0..(x.num_valid_targets as usize) {
-    //     let root = unionfind_struct.find(i);
-    //     if root != i {
-    //         groups.entry(root).or_insert_with(Vec::new).push(i);
-    //     }
-    // }
+    let mut groups = HashMap::new();
+    //let mut grouped_set = HashSet::new();
+    for i in 0..(x.num_valid_targets as usize) {
+        let root = unionfind_struct.find(i);
+        if root != i {
+            groups.entry(root).or_insert_with(Vec::new).push(i);
+        }
+    }
 
-    // // println!("Number of collapsed transcripts from conn components with 2 {}", num_collapses_2.to_formatted_string(&Locale::en));
-    // println!(
-    //     "Number of collapses {}",
-    //     num_collapses.to_formatted_string(&Locale::en)
-    // );
-    // //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
-    // let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
-    // let _write = util::group_writer(&mut gfile, &groups);
+    // println!("Number of collapsed transcripts from conn components with 2 {}", num_collapses_2.to_formatted_string(&Locale::en));
+    println!(
+        "Number of collapses {}",
+        num_collapses.to_formatted_string(&Locale::en)
+    );
+    //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
+    let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
+    let mut gofile = File::create(file_list_out.group_order_file).expect("could not create groups.txt");
+    let _write = util::group_writer(&mut gfile, &groups);
+    let _write = util::order_group_writer(&mut gofile, &group_order, &groups);
 
     Ok(true)
 }
