@@ -847,6 +847,26 @@ pub fn eq_experiment_to_graph(
 
     // a blanket merge in asemode
 
+    if asemode {
+        let mut allelic_collapses = 0;
+        for (_original_id, txp_id_vec) in original_id_to_old_id_map.iter() {
+            if txp_id_vec.len() > 1 {
+                let mut tlist = txp_id_vec.clone();
+                tlist.sort_unstable();
+                let source = tlist[0];
+
+                for t in tlist.iter().skip(1) {
+                    let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
+                    let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
+                    s += &to_add;
+                    unionfind_struct.union(source as usize, *t as usize);
+                    order_group(source as usize, *t as usize, group_order);
+                    allelic_collapses += 1;
+                }
+            }
+        }
+        println!("Number of alleleic collapses {}", allelic_collapses);
+    }
 
     
     let part_vec = part.iter().collect::<Vec<_>>();
@@ -876,27 +896,7 @@ pub fn eq_experiment_to_graph(
     }
     println!("Number of golden collapses {}", golden_collapses);
     println!("The refinery code ran for {:?}", part_start.elapsed());
-    if asemode {
-        let mut allelic_collapses = 0;
-        for (_original_id, txp_id_vec) in original_id_to_old_id_map.iter() {
-            if txp_id_vec.len() > 1 {
-                let mut tlist = txp_id_vec.clone();
-                tlist.sort_unstable();
-                let source = tlist[0];
-
-                for t in tlist.iter().skip(1) {
-                    let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
-                    let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
-                    s += &to_add;
-                    unionfind_struct.union(source as usize, *t as usize);
-                    order_group(source as usize, *t as usize, group_order);
-                    allelic_collapses += 1;
-                }
-            }
-        }
-        println!("Number of alleleic collapses {}", allelic_collapses);
-    }
-
+    
     let mut og = pg::Graph::<usize, EdgeInfo, petgraph::Undirected>::new_undirected();
     for (i, _n) in exp.targets.iter().enumerate() {
         let idx = og.add_node(i);
