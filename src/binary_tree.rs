@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+use std::collections::HashSet;
+
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>());
 }
 
-struct TreeNode {
+pub struct TreeNode {
     id: String,
     left: Option<Box<TreeNode>>,
     right: Option<Box<TreeNode>>,
@@ -39,7 +42,7 @@ impl TreeNode {
     }
     
     pub fn create_group_from_order(s:String) -> TreeNode {
-        let txps: Vec<&str> = s.rsplit("gr").collect();
+        let txps: Vec<&str> = s.split("gr").collect();
         let mut root = TreeNode::create_single_group(txps[0].to_string());
         
         for i in txps.iter().skip(1) {
@@ -49,6 +52,33 @@ impl TreeNode {
         root
     }
     
+    // Takes the set of all txps in the tree, txps in the child node (edge from current root) and returns the corresponding bipartition as string
+    // Criteria - Each bipartition is first sorted and then returned as parent and child
+    pub fn get_bipart(par:&HashSet<u32>, child:&str)  -> String {
+        
+        let child_set: HashSet<u32> = child.split("_").map(|x| x.parse::<u32>().unwrap()).collect();
+        println!("{:?}",child_set);
+        let mut req_par:Vec<u32> = par.difference(&child_set).cloned().collect();
+        req_par.sort();
+        println!("{:?}", req_par);
+        //https://stackoverflow.com/questions/53115999/what-is-the-idiomatic-way-of-converting-a-vec-of-references-to-a-vec-of-values
+        //https://hermanradtke.com/2015/06/22/effectively-using-iterators-in-rust.html
+        let mut child_set:Vec<u32> = child_set.iter().cloned().collect(); //Why iter not into_iter, clones
+        child_set.sort();
+        //vec![req_par, child_set]
+        let par_str: String = req_par
+                            .iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<String>>()
+                            .join("_");
+        let child_str: String = child_set
+                            .iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<String>>()
+                            .join("_");
+        
+        format!("{}bp{}", par_str, child_str)
+    }
     // Might Borrow the implementation defined in
     // https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
     pub fn traverse_tree(&self) {
@@ -65,19 +95,45 @@ impl TreeNode {
             self.right.as_ref().unwrap().traverse_tree();
         }
     }
-
 }
+
+pub fn compute_bipart_count(root:&TreeNode, bp_map:&mut HashMap<String,u32>, root_set:&HashSet<u32>) {
+        if ! root.left.is_none(){
+            println!("root is {}", root.id);
+            let d = root.left.as_ref().unwrap();
+            println!("left is {}", d.id);
+            compute_bipart_count(root.left.as_ref().unwrap(), bp_map, root_set);
+        }
+        if ! root.right.is_none(){
+            println!("root is {}", root.id);
+            let d = root.right.as_ref().unwrap();
+            println!("right is {}", d.id);
+            compute_bipart_count(root.right.as_ref().unwrap(), bp_map, root_set);
+        }
+}
+    
 fn main () {
     let x = TreeNode {id:"12".to_string(), left: None, right: None};
     // let y = TreeNode {id:"12".to_string(), left: None, right: None};
     // // let mut z = TreeNode::create_group(x,y);
     // println!("{}", z.id);
-    let s = "6_7gr3_4gr1_2_5".to_string();
+    let s = String::from("6_7gr3_4gr1_2_5");
     let d = TreeNode::create_group_from_order(s);
+    
+    let par_set:HashSet<u32> = d.id.split("_").map(|x| x.parse::<u32>().unwrap()).collect();
+    
+    // println!("{:?}",par_set);
+    // println!("{}",d.id);
+    // let e = TreeNode::get_bipart(&par_set, &d.left.unwrap().id);
+    // println!("{:?}", e);
+    //println!("{:?}", e[1]);
+    let mut bipart_counter: HashMap<String, u32> = HashMap::new();
+    compute_bipart_count(&d, &mut bipart_counter, &par_set);
+    
     //println!("{:?}", !x.left.is_none());
     //let e = d.left.as_ref().unwrap();
-    d.traverse_tree();
-    d.traverse_tree();
+    // d.traverse_tree();
+    // d.traverse_tree();
    // print_type_of(&d.left.as_ref().unwrap());
     //if(x.left == None){
         //println!("{}", d.left.unwrap().id);}
