@@ -28,7 +28,7 @@ use rand_pcg::Pcg64;
 use refinery::Partition;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
-
+use crate::binary_tree::{TreeNode};
 use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
 
 // General functions to r/w files
@@ -50,6 +50,32 @@ pub fn group_writer(
         let strings: Vec<String> = group.iter().map(|n| n.to_string()).collect();
         writeln!(gfile, "{},{}", group_id.to_string(), strings.join(","))?;
     }
+    Ok(true)
+}
+
+pub fn collapse_order_writer(
+    co_file: &mut File,
+    groups: &HashMap<usize, Vec<usize>>,
+    c_order: &[TreeNode]
+) -> Result<bool, io::Error> {
+    //let mut buffer = File::create("groups.txt")?;
+    //let mut buffer = File::create("foo.txt").unwrap();
+    //let mut file = GzEncoder::new(file_handle, Compression::default());
+    let mut co_updated : HashMap<usize,TreeNode> = HashMap::new();
+    
+    // co_updated.insert(0, c_order[0].clone());
+    // co_updated.insert(1, c_order[1].clone());
+    // co_updated.insert(2, c_order[10].clone());
+    for (group_id, group) in groups {
+        co_updated.insert(*group_id, c_order[*group_id].clone());
+    }
+    //println!("{:?}", co_updated);
+    let err_write = format!("Could not create/write collapsed_order.json in {:?}", co_file);
+    
+    //let serialized = serde_pickle::to_writer(co_file, &co_updated, true);
+    ::serde_json::to_writer(co_file, &co_updated)
+            .expect(&err_write);
+
     Ok(true)
 }
 
@@ -696,7 +722,8 @@ pub fn eq_experiment_to_graph(
     genevec: &[u32],
     original_id_to_old_id_map: &HashMap<u32, Vec<u32>>,
     asemode: bool,
-    group_order: &mut [String]
+    group_order: &mut [String],
+    collapse_order: &mut [TreeNode]
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
 
@@ -861,6 +888,9 @@ pub fn eq_experiment_to_graph(
                     s += &to_add;
                     unionfind_struct.union(source as usize, *t as usize);
                     order_group(source as usize, *t as usize, group_order);
+                    //println!("{}",collapse_order[*t as usize].id);
+                    collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
+                    collapse_order[*t as usize].clone());
                     allelic_collapses += 1;
                 }
             }
@@ -886,7 +916,8 @@ pub fn eq_experiment_to_graph(
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                     s += &to_add;
                     unionfind_struct.union(source as usize, *t as usize);
-                    order_group(source as usize, *t as usize, group_order);
+                    collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
+                    collapse_order[*t as usize].clone());
                     golden_collapses += 1;
                 }
             } else if p.len() > 10 {
@@ -1183,7 +1214,8 @@ pub fn work_on_component(
     thr: f64,
     infrv_quant: f64,
     cfile: &mut File,
-    group_order: &mut [String]
+    group_order: &mut [String],
+    collapse_order: &mut [TreeNode]
 ) {
     // make a set of edges to be visited
     let mut infrv_array = infrv(&gibbs_mat, Axis(1));
@@ -1285,7 +1317,8 @@ pub fn work_on_component(
                 // iv. heap
                 // v. unionfind_array
                 unionfind_struct.union(source, target);
-
+                collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
+                    collapse_order[target as usize].clone());
                 let to_add = gibbs_mat.index_axis(Axis(0), target).to_owned();
                 let mut s = gibbs_mat.slice_mut(s![source, ..]);
                 s += &to_add;

@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -5,15 +6,16 @@ fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>());
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TreeNode {
-    id: String,
-    left: Option<Box<TreeNode>>,
-    right: Option<Box<TreeNode>>,
+    pub id: String,
+    pub left: Option<Box<TreeNode>>,
+    pub right: Option<Box<TreeNode>>,
 }
 
 
 impl TreeNode {
-    fn create_leaf(id: String) -> TreeNode {
+    pub fn create_leaf(id: String) -> TreeNode {
         TreeNode {
             id: id,
             left: None,
@@ -21,7 +23,7 @@ impl TreeNode {
         }
     }
     
-    fn create_group(n1: TreeNode, n2: TreeNode) -> TreeNode {
+    pub fn create_group(n1: TreeNode, n2: TreeNode) -> TreeNode {
         TreeNode {
             id:format!("{}_{}",n1.id, n2.id),
             left: Some(Box::new(n1)),
@@ -112,48 +114,48 @@ pub fn compute_bipart_count(root:&TreeNode, bp_map:&mut HashMap<String,u32>, roo
         }
 }
     
-fn main () {
-    let x = TreeNode {id:"12".to_string(), left: None, right: None};
-    // let y = TreeNode {id:"12".to_string(), left: None, right: None};
-    // // let mut z = TreeNode::create_group(x,y);
-    // println!("{}", z.id);
-    let s = String::from("6_7gr3_4gr1_2_5");
-    let d = TreeNode::create_group_from_order(s);
+// fn main () {
+//     let x = TreeNode {id:"12".to_string(), left: None, right: None};
+//     // let y = TreeNode {id:"12".to_string(), left: None, right: None};
+//     // // let mut z = TreeNode::create_group(x,y);
+//     // println!("{}", z.id);
+//     let s = String::from("6_7gr3_4gr1_2_5");
+//     let d = TreeNode::create_group_from_order(s);
     
-    let par_set:HashSet<u32> = d.id.split("_").map(|x| x.parse::<u32>().unwrap()).collect();
+//     let par_set:HashSet<u32> = d.id.split("_").map(|x| x.parse::<u32>().unwrap()).collect();
     
-    // println!("{:?}",par_set);
-    // println!("{}",d.id);
-    // let e = TreeNode::get_bipart(&par_set, &d.left.unwrap().id);
-    // println!("{:?}", e);
-    //println!("{:?}", e[1]);
-    let mut bipart_counter: HashMap<String, u32> = HashMap::new();
-    compute_bipart_count(&d, &mut bipart_counter, &par_set);
+//     // println!("{:?}",par_set);
+//     // println!("{}",d.id);
+//     // let e = TreeNode::get_bipart(&par_set, &d.left.unwrap().id);
+//     // println!("{:?}", e);
+//     //println!("{:?}", e[1]);
+//     let mut bipart_counter: HashMap<String, u32> = HashMap::new();
+//     compute_bipart_count(&d, &mut bipart_counter, &par_set);
     
-    //println!("{:?}", !x.left.is_none());
-    //let e = d.left.as_ref().unwrap();
-    // d.traverse_tree();
-    // d.traverse_tree();
-   // print_type_of(&d.left.as_ref().unwrap());
-    //if(x.left == None){
-        //println!("{}", d.left.unwrap().id);}
+//     //println!("{:?}", !x.left.is_none());
+//     //let e = d.left.as_ref().unwrap();
+//     // d.traverse_tree();
+//     // d.traverse_tree();
+//    // print_type_of(&d.left.as_ref().unwrap());
+//     //if(x.left == None){
+//         //println!("{}", d.left.unwrap().id);}
     
-    // let mut y = TreeNode {id:"123", left: None, right: None};
-    // let mut z = TreeNode {id:"123", left: Some(Box::new(x)), right: Some(Box::new(y))};
-    //let d = TreeNode::create_leaf("aa");
-    //let e = TreeNode::create_leaf("ee");
+//     // let mut y = TreeNode {id:"123", left: None, right: None};
+//     // let mut z = TreeNode {id:"123", left: Some(Box::new(x)), right: Some(Box::new(y))};
+//     //let d = TreeNode::create_leaf("aa");
+//     //let e = TreeNode::create_leaf("ee");
     
-    //println!("{}",f)
-    // x.insert("z");
-    // x.insert("b");
-    // x.insert("c");
-    // assert!(x == Node {
-    //     val: "m",
-    //     l: Some(Box::new(Node {
-    //         val: "b",
-    //         l: None,
-    //         r: Some(Box::new(Node { val: "c", l: None, r: None })),
-    //     })),
-    //     r: Some(Box::new(Node { val: "z", l: None, r: None })),
-    // });
-}
+//     //println!("{}",f)
+//     // x.insert("z");
+//     // x.insert("b");
+//     // x.insert("c");
+//     // assert!(x == Node {
+//     //     val: "m",
+//     //     l: Some(Box::new(Node {
+//     //         val: "b",
+//     //         l: None,
+//     //         r: Some(Box::new(Node { val: "c", l: None, r: None })),
+//     //     })),
+//     //     r: Some(Box::new(Node { val: "z", l: None, r: None })),
+//     // });
+// }

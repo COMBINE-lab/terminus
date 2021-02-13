@@ -17,9 +17,11 @@ pub struct FileList {
     pub collapsed_log_file: PathBuf,
     pub group_file: PathBuf,
     pub group_order_file: PathBuf,
+    pub collapse_order_file: PathBuf,
     pub delta_file: PathBuf,
     pub cluster_file: PathBuf,
     pub gene_cluster_file: PathBuf,
+    
 }
 
 // construct the files
@@ -64,6 +66,7 @@ impl FileList {
             collapsed_log_file: dir.as_path().join("collapsed.log"),
             group_file: dir.as_path().join("groups.txt"),
             group_order_file: dir.as_path().join("order.txt"),
+            collapse_order_file: dir.as_path().join("collapse_order.json"),
             delta_file: dir.as_path().join("delta.log"),
             gene_cluster_file: dir.as_path().join("gene_cluster.log"),
         }

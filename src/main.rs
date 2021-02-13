@@ -1,6 +1,10 @@
 pub mod salmon_types;
 mod util;
+pub mod binary_tree;
 
+extern crate serde_stacker;
+extern crate serde_json;
+extern crate serde_pickle;
 use std::collections::HashMap;
 use std::fs::*;
 use std::io::Write;
@@ -15,6 +19,10 @@ use petgraph::algo::{connected_components, tarjan_scc};
 use petgraph::unionfind::UnionFind;
 use rayon::prelude::*;
 use std::path::PathBuf;
+
+use serde::Deserialize;
+use serde_json::Value;
+
 
 // Name of the program, to be used in diagnostic messages.
 static PROGRAM_NAME: &str = "terminus";
@@ -78,8 +86,9 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     prefix_path.push('/');
     prefix_path.push_str(experiment_name);
     let file_list = salmon_types::FileList::new(dname.to_string());
-
+    
     // create output directory
+    
     println!("output folder: {}", prefix_path);
     println!("------------------------------");
     // create
@@ -113,7 +122,11 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for (i, eq) in eq_class.classes.iter().enumerate() {
         eq_class_counts[i] = eq.2;
     }
-
+    let mut collapse_order: Vec<binary_tree::TreeNode> = Vec::new();
+    for i in 0..eq_class.ntarget {
+        collapse_order.push(binary_tree::TreeNode::create_leaf(i.to_string()));
+    }
+    
     let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
     // let mut allele_name_map : HashMap<String, String> = HashMap::new();
     let mut allele_vec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
@@ -218,6 +231,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &original_id_to_old_id_map,
         asemode,
         &mut group_order,
+        &mut collapse_order
     );
     
     util::verify_graph(&eq_class_counts, &mut gr);
@@ -252,6 +266,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         p,
         &mut cfile,
         &mut group_order,
+        &mut collapse_order
     );
 
     // //write down the groups
@@ -270,11 +285,30 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         num_collapses.to_formatted_string(&Locale::en)
     );
     //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
+    let ff = file_list_out.collapse_order_file.clone();
     let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
     let mut gofile = File::create(file_list_out.group_order_file).expect("could not create groups.txt");
+    let mut co_file = File::create(file_list_out.collapse_order_file).expect("could not create collapse order file");
+    
     let _write = util::group_writer(&mut gfile, &groups);
     let _write = util::order_group_writer(&mut gofile, &group_order, &groups);
-
+    let _write = util::collapse_order_writer(&mut co_file, &groups, &collapse_order);
+    
+    let file = File::open(ff);
+    let reader = BufReader::new(file.unwrap());
+    //let dd: HashMap<usize,binary_tree::TreeNode> = serde_pickle::from_reader(reader).unwrap();
+    let mut deserializer = serde_json::Deserializer::from_reader(reader);
+    deserializer.disable_recursion_limit();
+    //println!("{:?}", deserializer);
+    let dd: HashMap<usize,binary_tree::TreeNode> = HashMap::deserialize(&mut deserializer).unwrap();
+    //println!("{:?}",dd.get_key_value(&0).unwrap());
+    // let value = Value::deserialize(deserializer).unwrap();
+    //carefully_drop_nested_arrays(value);
+    // = serde_json::from_reader(reader).unwrap();
+    for (key, value) in &dd {
+        println!("{}: {}", key, value.id);
+    }
+    
     Ok(true)
 }
 
