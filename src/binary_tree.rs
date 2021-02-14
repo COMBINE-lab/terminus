@@ -54,33 +54,7 @@ impl TreeNode {
         root
     }
     
-    // Takes the set of all txps in the tree, txps in the child node (edge from current root) and returns the corresponding bipartition as string
-    // Criteria - Each bipartition is first sorted and then returned as parent and child
-    pub fn get_bipart(par:&HashSet<u32>, child:&str)  -> String {
-        
-        let child_set: HashSet<u32> = child.split("_").map(|x| x.parse::<u32>().unwrap()).collect();
-        println!("{:?}",child_set);
-        let mut req_par:Vec<u32> = par.difference(&child_set).cloned().collect();
-        req_par.sort();
-        println!("{:?}", req_par);
-        //https://stackoverflow.com/questions/53115999/what-is-the-idiomatic-way-of-converting-a-vec-of-references-to-a-vec-of-values
-        //https://hermanradtke.com/2015/06/22/effectively-using-iterators-in-rust.html
-        let mut child_set:Vec<u32> = child_set.iter().cloned().collect(); //Why iter not into_iter, clones
-        child_set.sort();
-        //vec![req_par, child_set]
-        let par_str: String = req_par
-                            .iter()
-                            .map(|v| v.to_string())
-                            .collect::<Vec<String>>()
-                            .join("_");
-        let child_str: String = child_set
-                            .iter()
-                            .map(|v| v.to_string())
-                            .collect::<Vec<String>>()
-                            .join("_");
-        
-        format!("{}bp{}", par_str, child_str)
-    }
+    
     // Might Borrow the implementation defined in
     // https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
     pub fn traverse_tree(&self) {
@@ -99,19 +73,60 @@ impl TreeNode {
     }
 }
 
-pub fn compute_bipart_count(root:&TreeNode, bp_map:&mut HashMap<String,u32>, root_set:&HashSet<u32>) {
-        if ! root.left.is_none(){
-            println!("root is {}", root.id);
-            let d = root.left.as_ref().unwrap();
-            println!("left is {}", d.id);
-            compute_bipart_count(root.left.as_ref().unwrap(), bp_map, root_set);
+// Takes the set of all txps in the tree, txps in the child node (edge from current root) and returns the corresponding bipartition as string
+// Criteria - Each bipartition is first sorted and then returned as parent and child
+pub fn get_bipart_split(par:&HashSet<u32>, child:&str)  -> String {
+    let child_set: HashSet<u32> = child.split("_").map(|x| x.parse::<u32>().unwrap()).collect();
+    println!("{:?}",child_set);
+    let mut req_par:Vec<u32> = par.difference(&child_set).cloned().collect();
+    req_par.sort();
+    println!("{:?}", req_par);
+    //https://stackoverflow.com/questions/53115999/what-is-the-idiomatic-way-of-converting-a-vec-of-references-to-a-vec-of-values
+    //https://hermanradtke.com/2015/06/22/effectively-using-iterators-in-rust.html
+    let mut child_set:Vec<u32> = child_set.iter().cloned().collect(); //Why iter not into_iter, clones
+    child_set.sort();
+    let (req_par, child_set) = if req_par.len() > child_set.len() {
+        (req_par, child_set)
+    } else {
+        (child_set, req_par)
+    };
+    //vec![req_par, child_set]
+    let par_str: String = req_par
+                        .iter()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<String>>()
+                        .join("_");
+    let child_str: String = child_set
+                        .iter()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<String>>()
+                        .join("_");
+    
+    format!("{}bp{}", child_str, par_str)
+}
+
+pub fn compute_bipart_count(node:&TreeNode, bp_map:&mut HashMap<String,u32>, dir_bp_map:&mut HashMap<String,u32>, root_set:&HashSet<u32>) {
+    if ! node.left.is_none(){
+        //println!("root is {}", node.id);
+        let split = get_bipart_split(root_set, &node.left.as_ref().unwrap().id);
+        if ! dir_bp_map.contains_key(&split) {
+            dir_bp_map.insert(split.clone(), 1);
+            let count = bp_map.entry(split).or_insert(0);
+            *count += 1;
         }
-        if ! root.right.is_none(){
-            println!("root is {}", root.id);
-            let d = root.right.as_ref().unwrap();
-            println!("right is {}", d.id);
-            compute_bipart_count(root.right.as_ref().unwrap(), bp_map, root_set);
+        //println!("left is {}", d.id);
+        compute_bipart_count(node.left.as_ref().unwrap(), bp_map, dir_bp_map, root_set);
+    }
+    if ! node.right.is_none(){
+        //println!("root is {}", node.id);
+        let split = get_bipart_split(root_set, &node.right.as_ref().unwrap().id);
+        if ! dir_bp_map.contains_key(&split) {
+            dir_bp_map.insert(split.clone(), 1);
+            let count = bp_map.entry(split).or_insert(0);
+            *count += 1;
         }
+        compute_bipart_count(node.right.as_ref().unwrap(), bp_map, dir_bp_map, root_set);
+    }
 }
     
 // fn main () {

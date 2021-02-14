@@ -676,7 +676,7 @@ pub fn order_group_writer(go_file: &mut File,
     Ok(true)
 }
 
-fn order_group(mut source: usize, target:usize, group_order: &mut [String]) {
+fn order_group(source: usize, target:usize, group_order: &mut [String]) {
     
     // if group_order[target].ends_with("p"){ //p is to say that this node has been target prior
     //     println!("{}_{}",source,target);
