@@ -77,10 +77,10 @@ impl TreeNode {
 // Criteria - Each bipartition is first sorted and then returned as parent and child
 pub fn get_bipart_split(par:&HashSet<u32>, child:&str)  -> String {
     let child_set: HashSet<u32> = child.split("_").map(|x| x.parse::<u32>().unwrap()).collect();
-    println!("{:?}",child_set);
+    //println!("{:?}",child_set);
     let mut req_par:Vec<u32> = par.difference(&child_set).cloned().collect();
     req_par.sort();
-    println!("{:?}", req_par);
+    //println!("{:?}", req_par);
     //https://stackoverflow.com/questions/53115999/what-is-the-idiomatic-way-of-converting-a-vec-of-references-to-a-vec-of-values
     //https://hermanradtke.com/2015/06/22/effectively-using-iterators-in-rust.html
     let mut child_set:Vec<u32> = child_set.iter().cloned().collect(); //Why iter not into_iter, clones

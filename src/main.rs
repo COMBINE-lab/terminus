@@ -337,7 +337,6 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         deserializer.disable_recursion_limit();
     //println!("{:?}", deserializer);
         let collapse_order: HashMap<usize,binary_tree::TreeNode> = HashMap::deserialize(&mut deserializer).unwrap();
-        let mut rep_splits = 0;
         for (key, node) in &collapse_order  {
             let node = collapse_order.get(key).unwrap();
             let node_set:HashSet<u32> = node.id.clone()
@@ -354,18 +353,11 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .unwrap()
         .parse::<f64>()
         .expect("could not parse --consensus-thresh option");
-    let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as usize;
+    let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as u32;
+    bipart_counter.retain(|key, value| {
+        *value >= half_length 
+    });
 
-    // let global_filtered_graph = global_graph.filter_map(
-    //     |_, n| Some(*n),
-    //     |_, &e| {
-    //         if (e as usize) >= half_length {
-    //             Some(e)
-    //         } else {
-    //             None
-    //         }
-    //     },
-    // );
 
     // if t2g exists also dumps gene level groups
     // let transcript2gene = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
@@ -470,57 +462,56 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // comps.sort_by_key(|v| v.len());
     // // write a json file containing
     // // new number of nodes, number of components, etc
-    // let (total_in_group, num_group) = comps.iter().fold((0, 0), |s, v| {
-    //     if v.len() > 1 {
-    //         (s.0 + v.len(), s.1 + 1)
-    //     } else {
-    //         (s.0, s.1)
-    //     }
-    // });
-    // let term_info = salmon_types::TerminusInfo {
-    //     num_nontrivial_groups: num_group,
-    //     num_targets_in_nontrivial_group: total_in_group,
-    // };
-    // println!(
-    //     "total number of transcripts in a non-trivial group : {}",
-    //     total_in_group
-    // );
-    // println!("total consensus clusters : {}", num_group);
-
+    let mut total_in_group = 0;
+    let mut num_group = 0;
+    for (bipart_split, _) in bipart_counter.iter() {
+        total_in_group += bipart_split.split("_").collect::<Vec<&str>>().len() + 1; //+1 for bp
+        num_group += 1;
+    }
+    let term_info = salmon_types::TerminusInfo {
+        num_nontrivial_groups: num_group,
+        num_targets_in_nontrivial_group: total_in_group,
+    };
+    println!(
+        "total number of transcripts in a non-trivial group : {}",
+        total_in_group
+    );
+    println!("total consensus clusters : {}", num_group);
+    let mut l = term_info
     // // for each experiment call the writer
-    // println!("=============Writing collapsed output=============");
-    // dir_paths.into_par_iter().for_each(|dname| {
-    //     // getting prepared for output
-    //     let compo: Vec<&str> = dname.rsplit('/').collect();
-    //     let experiment_name = compo[0];
-    //     let mut prefix_path = prefix.clone();
-    //     prefix_path.push('/');
-    //     prefix_path.push_str(experiment_name);
-    //     let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
-    //     let file_list = salmon_types::FileList::new(dname.to_string());
-    //     // create output directory
-    //     println!("Sample {}", experiment_name);
+    println!("=============Writing collapsed output=============");
+    dir_paths.into_par_iter().for_each(|dname| {
+        // getting prepared for output
+        let compo: Vec<&str> = dname.rsplit('/').collect();
+        let experiment_name = compo[0];
+        let mut prefix_path = prefix.clone();
+        prefix_path.push('/');
+        prefix_path.push_str(experiment_name);
+        let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
+        let file_list = salmon_types::FileList::new(dname.to_string());
+        // create output directory
+        println!("Sample {}", experiment_name);
 
-    //     let bpath = std::path::Path::new(&prefix_path);
-    //     let term_info_path = bpath.join("terminus_info.json");
-    //     let estr = format!("could not write terminus_info.json in {}", prefix_path);
-    //     ::serde_json::to_writer(&File::create(term_info_path).expect(&estr), &term_info)
-    //         .expect(&estr);
-    //     // load old files
-    //     // let x = util::parse_json(&file_list.mi_file).unwrap();
-    //     // copy cmd_info.json from old location to new
-    //     std::fs::copy(&file_list.cmd_file, &file_list_out.cmd_file)
-    //         .expect("Could not copy cmd_info.json.");
-    //     let x = util::parse_json(&file_list.mi_file).unwrap();
-    //     let rec = util::parse_quant(&file_list.quant_file, &x).unwrap();
-    //     let mut gibbs_array =
-    //         Array2::<f64>::zeros((x.num_valid_targets as usize, x.num_bootstraps as usize));
-    //     util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
+        let bpath = std::path::Path::new(&prefix_path);
+        let term_info_path = bpath.join("terminus_info.json");
+        let estr = format!("could not write terminus_info.json in {}", prefix_path);
+        ::serde_json::to_writer(&File::create(term_info_path).expect(&estr), &term_info)
+            .expect(&estr);
+        // load old files
+        // let x = util::parse_json(&file_list.mi_file).unwrap();
+        // copy cmd_info.json from old location to new
+        std::fs::copy(&file_list.cmd_file, &file_list_out.cmd_file)
+            .expect("Could not copy cmd_info.json.");
+        let x = util::parse_json(&file_list.mi_file).unwrap();
+        let rec = util::parse_quant(&file_list.quant_file, &x).unwrap();
+        let mut gibbs_array =
+            Array2::<f64>::zeros((x.num_valid_targets as usize, x.num_bootstraps as usize));
+        util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
 
     //     //call the writer
     //     let _res =
     //         util::write_quants_from_components(&comps, &file_list_out, &gibbs_array, &x, &rec);
-    // });
+    });
 
     Ok(true)
 }
