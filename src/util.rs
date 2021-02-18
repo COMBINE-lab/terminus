@@ -676,6 +676,18 @@ pub fn order_group_writer(go_file: &mut File,
     Ok(true)
 }
 
+pub fn co_id_writer(go_file: &mut File,
+    groups: &HashMap<usize, Vec<usize>>,
+    co_order: &[TreeNode])     
+    -> Result<bool, io::Error>{
+    //let go_iter = group_order.iter();
+    for (group_id, _) in groups {        
+        writeln!(go_file, "{}", co_order[*group_id].id)?;
+    }
+    Ok(true)
+}
+
+
 fn order_group(source: usize, target:usize, group_order: &mut [String]) {
     
     // if group_order[target].ends_with("p"){ //p is to say that this node has been target prior
@@ -881,17 +893,27 @@ pub fn eq_experiment_to_graph(
                 let mut tlist = txp_id_vec.clone();
                 tlist.sort_unstable();
                 let source = tlist[0];
-
+                
                 for t in tlist.iter().skip(1) {
                     let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
-                    s += &to_add;
+                    s += &to_add;                    
                     unionfind_struct.union(source as usize, *t as usize);
+                    let act_source = unionfind_struct.find(source as usize) as usize;
+                    let mut act_target = *t as usize;
+                    if act_source==act_target{
+                        act_target = source as usize;
+                    }
                     order_group(source as usize, *t as usize, group_order);
                     //println!("{}",collapse_order[*t as usize].id);
-                    collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
-                    collapse_order[*t as usize].clone());
+                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
+                    collapse_order[act_target as usize].clone());
                     allelic_collapses += 1;
+                }
+                if tlist.contains(&32551){
+                    println!("{:?}", tlist);
+                    println!("{} {}",unionfind_struct.find(32551 as usize), unionfind_struct.find(32552 as usize));
+                    println!("{}", collapse_order[32551 as usize].id);
                 }
             }
         }
@@ -909,15 +931,45 @@ pub fn eq_experiment_to_graph(
                     println!("{},{}", p.len(), p[0]);
                 }
                 let mut tlist = p.to_vec();
+                // if tlist.contains(&34030){
+                //     println!("Yes");
+                //     println!("30 {}",unionfind_struct.find(34030 as usize));
+                //     println!("38 {}",unionfind_struct.find(34038 as usize));
+                // }
+                
                 tlist.sort_unstable();
                 let source = tlist[0];
                 for t in tlist.iter().skip(1) {
+                    // if tlist.contains(&34406){
+                    //     println!("{}",*t);
+                    // }                  
+
                     let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                     s += &to_add;
                     unionfind_struct.union(source as usize, *t as usize);
-                    collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
-                    collapse_order[*t as usize].clone());
+                    if tlist.contains(&32542){
+                        println!("{:?}", tlist);
+                        println!("{},{},{}",unionfind_struct.find(32542 as usize), unionfind_struct.find(32552 as usize), unionfind_struct.find(32551 as usize));
+                    }
+                    let act_source = unionfind_struct.find(source as usize);
+                    //let mut act_target = unionfind_struct.find(*t as usize);
+                    let mut act_target = *t as usize;
+                    if act_source==act_target{
+                        act_target = source;
+                    }
+                   
+                    // if source == 34030 || *t == 34030 || source == 34038 || *t == 34038 {
+                    //     unionfind_struct.union(34030 as usize, *t as usize);
+                    //     println!("source is {}, target is {}", source, *t);
+                    //     println!("aa");
+                    //     println!("{}",unionfind_struct.find(source));
+                    // }
+                    // else{
+                    //     unionfind_struct.union(source as usize, *t as usize);
+                    // }
+                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
+                    collapse_order[act_target as usize].clone());
                     golden_collapses += 1;
                 }
             } else if p.len() > 10 {
@@ -1005,6 +1057,7 @@ pub fn eq_experiment_to_graph(
         for a in 0..retained.len() {
             let mut na = retained[a] as usize;
             let na_root = unionfind_struct.find(na);
+            
             if na_root != na {
                 na = na_root;
             }

@@ -5,6 +5,8 @@ pub mod binary_tree;
 extern crate serde_stacker;
 extern crate serde_json;
 extern crate serde_pickle;
+
+
 use std::collections::{HashMap, HashSet};
 use std::fs::*;
 use std::io::Write;
@@ -254,20 +256,20 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .node_indices()
         .map(|x| petgraph::graph::NodeIndex::new(x.index()))
         .collect();
-    util::work_on_component(
-        &eq_class_counts,
-        &mut gibbs_array,
-        &mut gibbs_mat_mean,
-        &mut unionfind_struct,
-        &mut gr,
-        &gcomp,
-        &mut num_collapses,
-        thr,
-        p,
-        &mut cfile,
-        &mut group_order,
-        &mut collapse_order
-    );
+    // util::work_on_component(
+    //     &eq_class_counts,
+    //     &mut gibbs_array,
+    //     &mut gibbs_mat_mean,
+    //     &mut unionfind_struct,
+    //     &mut gr,
+    //     &gcomp,
+    //     &mut num_collapses,
+    //     thr,
+    //     p,
+    //     &mut cfile,
+    //     &mut group_order,
+    //     &mut collapse_order
+    // );
 
     // //write down the groups
     let mut groups = HashMap::new();
@@ -289,11 +291,11 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
     let mut gofile = File::create(file_list_out.group_order_file).expect("could not create groups.txt");
     let mut co_file = File::create(file_list_out.collapse_order_file).expect("could not create collapse order file");
-    
+    let mut co = File::create("co_file.txt").expect("could not create collapse order file");
     let _write = util::group_writer(&mut gfile, &groups);
-    let _write = util::order_group_writer(&mut gofile, &group_order, &groups);
+   // let _write = util::order_group_writer(&mut gofile, &group_order, &groups);
     let _write = util::collapse_order_writer(&mut co_file, &groups, &collapse_order);
-    
+    let _write = util::co_id_writer(&mut co, &groups, &collapse_order);
     // let file = File::open(ff);
     // let reader = BufReader::new(file.unwrap());
     //let dd: HashMap<usize,binary_tree::TreeNode> = serde_pickle::from_reader(reader).unwrap();
@@ -477,7 +479,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         total_in_group
     );
     println!("total consensus clusters : {}", num_group);
-    let mut l = term_info
+    //let mut l = term_info;
     // // for each experiment call the writer
     println!("=============Writing collapsed output=============");
     dir_paths.into_par_iter().for_each(|dname| {
