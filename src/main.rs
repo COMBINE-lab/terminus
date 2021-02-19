@@ -256,20 +256,20 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .node_indices()
         .map(|x| petgraph::graph::NodeIndex::new(x.index()))
         .collect();
-    // util::work_on_component(
-    //     &eq_class_counts,
-    //     &mut gibbs_array,
-    //     &mut gibbs_mat_mean,
-    //     &mut unionfind_struct,
-    //     &mut gr,
-    //     &gcomp,
-    //     &mut num_collapses,
-    //     thr,
-    //     p,
-    //     &mut cfile,
-    //     &mut group_order,
-    //     &mut collapse_order
-    // );
+    util::work_on_component(
+        &eq_class_counts,
+        &mut gibbs_array,
+        &mut gibbs_mat_mean,
+        &mut unionfind_struct,
+        &mut gr,
+        &gcomp,
+        &mut num_collapses,
+        thr,
+        p,
+        &mut cfile,
+        &mut group_order,
+        &mut collapse_order
+    );
 
     // //write down the groups
     let mut groups = HashMap::new();

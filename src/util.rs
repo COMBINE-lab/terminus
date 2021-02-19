@@ -870,18 +870,6 @@ pub fn eq_experiment_to_graph(
             //partition_sets.push(vec![pair_vec[j].0 as usize]);
         }
 
-        //let mut tmp_vec = Vec::with_capacity(ns.len());
-        //let mut last_idx = 0 as usize;
-        //let mut ce = pair_vec[last_idx];
-        //loop {
-        //   tmp_vec.clear();
-        //   tmp_vec.extend(pair_vec.iter().skip(last_idx).take_while(|x| (x.1.to_f64().unwrap() - ce.1.to_f64().unwrap()) < 1e-3).map(|x| x.0 as usize));
-        //   part.refine(&tmp_vec[..]);
-        //   last_idx += tmp_vec.len();
-        //   if last_idx >= pair_vec.len() { break; }
-        //   ce = pair_vec[last_idx];
-        //}
-        //println!("{:?}",partition_sets);
     }
 
     // a blanket merge in asemode
@@ -898,22 +886,21 @@ pub fn eq_experiment_to_graph(
                     let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                     s += &to_add;                    
-                    unionfind_struct.union(source as usize, *t as usize);
-                    let act_source = unionfind_struct.find(source as usize) as usize;
-                    let mut act_target = *t as usize;
-                    if act_source==act_target{
-                        act_target = source as usize;
+                    let mut act_target = unionfind_struct.find(*t as usize);
+                    let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
+                    let merge = unionfind_struct.union(source as usize, *t as usize);
+                    if merge{
+                        let act_source = unionfind_struct.find(source as usize) as usize;
+                        
+                        if act_source==act_target{
+                            act_target = source as usize;
+                        }
+                        order_group(source as usize, *t as usize, group_order);
+                        //println!("{}",collapse_order[*t as usize].id);
+                        collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
+                        collapse_order[act_target as usize].clone());
                     }
-                    order_group(source as usize, *t as usize, group_order);
-                    //println!("{}",collapse_order[*t as usize].id);
-                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
-                    collapse_order[act_target as usize].clone());
                     allelic_collapses += 1;
-                }
-                if tlist.contains(&32551){
-                    println!("{:?}", tlist);
-                    println!("{} {}",unionfind_struct.find(32551 as usize), unionfind_struct.find(32552 as usize));
-                    println!("{}", collapse_order[32551 as usize].id);
                 }
             }
         }
@@ -923,7 +910,8 @@ pub fn eq_experiment_to_graph(
     
     let part_vec = part.iter().collect::<Vec<_>>();
     let mut golden_collapses = 0;
-    for (_, p) in part_vec.iter().enumerate() {
+    let mut t_prev=vec!(0);
+    'outer: for (_, p) in part_vec.iter().enumerate() {
         if p.len() > 1 {
             //println!("{:?}", p);
             if valid_transcripts[p[0]] {
@@ -931,45 +919,27 @@ pub fn eq_experiment_to_graph(
                     println!("{},{}", p.len(), p[0]);
                 }
                 let mut tlist = p.to_vec();
-                // if tlist.contains(&34030){
-                //     println!("Yes");
-                //     println!("30 {}",unionfind_struct.find(34030 as usize));
-                //     println!("38 {}",unionfind_struct.find(34038 as usize));
-                // }
-                
+               
                 tlist.sort_unstable();
                 let source = tlist[0];
-                for t in tlist.iter().skip(1) {
-                    // if tlist.contains(&34406){
-                    //     println!("{}",*t);
-                    // }                  
-
+                
+            'inner: for t in tlist.iter().skip(1) {
                     let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                     s += &to_add;
-                    unionfind_struct.union(source as usize, *t as usize);
-                    if tlist.contains(&32542){
-                        println!("{:?}", tlist);
-                        println!("{},{},{}",unionfind_struct.find(32542 as usize), unionfind_struct.find(32552 as usize), unionfind_struct.find(32551 as usize));
+                    let mut act_target = unionfind_struct.find(*t as usize); // parent of current target node
+                    let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
+                    let merge = unionfind_struct.union(source as usize, *t as usize);
+                    
+                    if merge{
+                        let act_source = unionfind_struct.find(source as usize);
+                        if act_source == act_target{
+                            act_target = par_source;
+                        }
+                        collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
+                        collapse_order[act_target as usize].clone());
                     }
-                    let act_source = unionfind_struct.find(source as usize);
-                    //let mut act_target = unionfind_struct.find(*t as usize);
-                    let mut act_target = *t as usize;
-                    if act_source==act_target{
-                        act_target = source;
-                    }
-                   
-                    // if source == 34030 || *t == 34030 || source == 34038 || *t == 34038 {
-                    //     unionfind_struct.union(34030 as usize, *t as usize);
-                    //     println!("source is {}, target is {}", source, *t);
-                    //     println!("aa");
-                    //     println!("{}",unionfind_struct.find(source));
-                    // }
-                    // else{
-                    //     unionfind_struct.union(source as usize, *t as usize);
-                    // }
-                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
-                    collapse_order[act_target as usize].clone());
+                    
                     golden_collapses += 1;
                 }
             } else if p.len() > 10 {
@@ -1369,9 +1339,20 @@ pub fn work_on_component(
                 // iii. Each neighbor of u and v
                 // iv. heap
                 // v. unionfind_array
-                unionfind_struct.union(source, target);
-                collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
-                    collapse_order[target as usize].clone());
+                let mut act_target = unionfind_struct.find(target as usize);
+                let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
+                let merge = unionfind_struct.union(source as usize, target);
+                if merge{
+                    let act_source = unionfind_struct.find(source as usize) as usize;
+                    if act_source==act_target{
+                        act_target = par_source;
+                    }
+                    //order_group(source as usize, *t as usize, group_order);
+                    //println!("{}",collapse_order[*t as usize].id);
+                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
+                    collapse_order[act_target as usize].clone());
+                }
+                
                 let to_add = gibbs_mat.index_axis(Axis(0), target).to_owned();
                 let mut s = gibbs_mat.slice_mut(s![source, ..]);
                 s += &to_add;
