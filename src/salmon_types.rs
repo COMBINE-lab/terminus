@@ -21,6 +21,7 @@ pub struct FileList {
     pub delta_file: PathBuf,
     pub cluster_file: PathBuf,
     pub gene_cluster_file: PathBuf,
+    pub group_bp_splits_file: PathBuf,
     pub cluster_bp_splits_file: PathBuf
 }
 
@@ -69,6 +70,7 @@ impl FileList {
             collapse_order_file: dir.as_path().join("collapse_order.json"),
             delta_file: dir.as_path().join("delta.log"),
             gene_cluster_file: dir.as_path().join("gene_cluster.log"),
+            group_bp_splits_file: dir.as_path().join("group_bipart_splits.txt"),
             cluster_bp_splits_file: dir.as_path().join("cluster_bipart_splits.txt"),
         }
     }

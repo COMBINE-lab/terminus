@@ -85,6 +85,11 @@ pub fn get_bipart_split(par:&HashSet<u32>, child:&str)  -> String {
     //https://hermanradtke.com/2015/06/22/effectively-using-iterators-in-rust.html
     let mut child_set:Vec<u32> = child_set.iter().cloned().collect(); //Why iter not into_iter, clones
     child_set.sort();
+    if req_par.len() == 1 && child_set.len() == 1 {
+        req_par.push(child_set[0]);
+        req_par.sort();
+        return format!("{}bp{}", req_par[0].to_string(), req_par[1].to_string());
+    }
     let (req_par, child_set) = if req_par.len() > child_set.len() {
         (req_par, child_set)
     } else {
@@ -105,27 +110,35 @@ pub fn get_bipart_split(par:&HashSet<u32>, child:&str)  -> String {
     format!("{}bp{}", child_str, par_str)
 }
 
-pub fn compute_bipart_count(node:&TreeNode, bp_map:&mut HashMap<String,u32>, dir_bp_map:&mut HashMap<String,u32>, root_set:&HashSet<u32>) {
+// pub fn bipart_splits_writer(split_file: &mut File, split: String, ) -> Result<bool,io::Error> {
+//     writeln!
+
+// }
+
+pub fn compute_bipart_count(node:&TreeNode, bp_map:&mut HashMap<String,u32>,
+     dir_bp_map:&mut HashMap<String,u32>, root_set:&HashSet<u32>, g_bipart:&mut Vec<String>) {
     if ! node.left.is_none(){
         //println!("root is {}", node.id);
         let split = get_bipart_split(root_set, &node.left.as_ref().unwrap().id);
         if ! dir_bp_map.contains_key(&split) {
+            g_bipart.push(split.clone());
             dir_bp_map.insert(split.clone(), 1);
             let count = bp_map.entry(split).or_insert(0);
             *count += 1;
         }
         //println!("left is {}", d.id);
-        compute_bipart_count(node.left.as_ref().unwrap(), bp_map, dir_bp_map, root_set);
+        compute_bipart_count(node.left.as_ref().unwrap(), bp_map, dir_bp_map, root_set, g_bipart);
     }
     if ! node.right.is_none(){
         //println!("root is {}", node.id);
         let split = get_bipart_split(root_set, &node.right.as_ref().unwrap().id);
         if ! dir_bp_map.contains_key(&split) {
+            g_bipart.push(split.clone());
             dir_bp_map.insert(split.clone(), 1);
             let count = bp_map.entry(split).or_insert(0);
             *count += 1;
         }
-        compute_bipart_count(node.right.as_ref().unwrap(), bp_map, dir_bp_map, root_set);
+        compute_bipart_count(node.right.as_ref().unwrap(), bp_map, dir_bp_map, root_set, g_bipart);
     }
 }
     

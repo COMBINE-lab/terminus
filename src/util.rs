@@ -39,6 +39,21 @@ use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRe
 // bootstraps.gz
 // ambig_info.tsv
 
+pub fn bipart_writer(
+    g_bp_file: &mut File,
+    group_bipart: &HashMap<String, Vec<String>>
+) ->  Result<bool, io::Error> {
+    //let l = group_bipart.len();
+    //let mut i = 0;
+    for (group_id, bpart_vec) in group_bipart {
+        writeln!(g_bp_file, "{}\t{}", group_id, bpart_vec.len())?;
+        for bpart in bpart_vec {
+            writeln!(g_bp_file, "{}", bpart)?;
+        }
+    }
+    Ok(true)
+}
+
 pub fn group_writer(
     gfile: &mut File,
     groups: &HashMap<usize, Vec<usize>>,
@@ -61,13 +76,13 @@ pub fn collapse_order_writer(
     //let mut buffer = File::create("groups.txt")?;
     //let mut buffer = File::create("foo.txt").unwrap();
     //let mut file = GzEncoder::new(file_handle, Compression::default());
-    let mut co_updated : HashMap<usize,TreeNode> = HashMap::new();
+    let mut co_updated : HashMap<String,TreeNode> = HashMap::new();
     
     // co_updated.insert(0, c_order[0].clone());
     // co_updated.insert(1, c_order[1].clone());
     // co_updated.insert(2, c_order[10].clone());
-    for (group_id, group) in groups {
-        co_updated.insert(*group_id, c_order[*group_id].clone());
+    for (group_id, _) in groups {
+        co_updated.insert(c_order[*group_id].id.clone(), c_order[*group_id].clone());
     }
     //println!("{:?}", co_updated);
     let err_write = format!("Could not create/write collapsed_order.json in {:?}", co_file);
