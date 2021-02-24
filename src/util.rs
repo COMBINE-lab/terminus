@@ -39,16 +39,31 @@ use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRe
 // bootstraps.gz
 // ambig_info.tsv
 
+// pub fn bipart_writer(
+//     g_bp_file: &mut File,
+//     group_bipart: &HashMap<String, Vec<String>>
+// ) ->  Result<bool, io::Error> {
+//     //let l = group_bipart.len();
+//     //let mut i = 0;
+//     for (group_id, bpart_vec) in group_bipart {
+//         writeln!(g_bp_file, "{}\t{}", group_id, bpart_vec.len())?;
+//         for bpart in bpart_vec {
+//             writeln!(g_bp_file, "{}", bpart)?;
+//         }
+//     }
+//     Ok(true)
+// }
+
 pub fn bipart_writer(
     g_bp_file: &mut File,
-    group_bipart: &HashMap<String, Vec<String>>
+    group_bipart: &HashMap<String, HashMap<String, u32>>
 ) ->  Result<bool, io::Error> {
     //let l = group_bipart.len();
     //let mut i = 0;
-    for (group_id, bpart_vec) in group_bipart {
-        writeln!(g_bp_file, "{}\t{}", group_id, bpart_vec.len())?;
-        for bpart in bpart_vec {
-            writeln!(g_bp_file, "{}", bpart)?;
+    for (group_id, bpart_hash) in group_bipart {
+        writeln!(g_bp_file, "{}\t{}", group_id, bpart_hash.len())?;
+        for (bpart,count) in bpart_hash {
+            writeln!(g_bp_file, "{}\t{}", bpart, count)?;
         }
     }
     Ok(true)
@@ -1661,4 +1676,4 @@ pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Err
     //let duration = start.elapsed();
     Ok(exp)
     // make graph from these
-}
+} 

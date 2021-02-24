@@ -141,7 +141,53 @@ pub fn compute_bipart_count(node:&TreeNode, bp_map:&mut HashMap<String,u32>,
         compute_bipart_count(node.right.as_ref().unwrap(), bp_map, dir_bp_map, root_set, g_bipart);
     }
 }
-    
+
+pub fn compute_bipart_count2(node:&TreeNode, bp_map:&mut HashMap<String,u32>,
+    dir_bp_map:&mut HashMap<String,u32>) {
+   if ! node.left.is_none(){
+       //println!("root is {}", node.id);
+       //let split = get_bipart_split(root_set, &node.left.as_ref().unwrap().id);
+       let bpart = sort_group_id(&node.left.as_ref().unwrap().id);
+       if dir_bp_map.contains_key(&bpart) {
+           println!("bpart repeats in left");
+       }
+        //    g_bipart.push(split.clone());
+           dir_bp_map.insert(bpart.clone(), 1);
+           let count = bp_map.entry(bpart.clone()).or_insert(0);
+           *count += 1;
+       
+       //println!("left is {}", d.id);
+       //compute_bipart_count(node.left.as_ref().unwrap(), bp_map, dir_bp_map, root_set, g_bipart);
+       compute_bipart_count2(node.left.as_ref().unwrap(), bp_map, dir_bp_map);
+   }
+   if ! node.right.is_none(){
+       //println!("root is {}", node.id);
+       //let split = get_bipart_split(root_set, &node.right.as_ref().unwrap().id);
+       let bpart = sort_group_id(&node.right.as_ref().unwrap().id);
+       if dir_bp_map.contains_key(&bpart) {
+           println!("bpart repeats in right");  
+       }
+           //g_bipart.push(split.clone());
+           dir_bp_map.insert(bpart.clone(), 1);
+           let count = bp_map.entry(bpart.clone()).or_insert(0);
+           *count += 1;
+       
+       //compute_bipart_count(node.right.as_ref().unwrap(), bp_map, dir_bp_map, root_set, g_bipart);
+       compute_bipart_count2(node.right.as_ref().unwrap(), bp_map, dir_bp_map);
+   }
+}
+
+pub fn sort_group_id(group: &str) -> String{
+    let mut tps:Vec<u32> = group.split("_")
+            .map(|x| x.parse::<u32>().unwrap())
+            .collect();
+    tps.sort();
+    let mut group=tps.iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<String>>()
+            .join("_");
+    group
+}
 // fn main () {
 //     let x = TreeNode {id:"12".to_string(), left: None, right: None};
 //     // let y = TreeNode {id:"12".to_string(), left: None, right: None};

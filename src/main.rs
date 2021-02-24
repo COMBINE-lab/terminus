@@ -317,13 +317,15 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let dir_paths: Vec<_> = sub_m.values_of("dirs").unwrap().collect();
     let prefix: String = sub_m.value_of("out").unwrap().to_string();
 
-    let mut bipart_counter: HashMap<String, u32> = HashMap::new();
+    //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
+    let mut bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new();
     
 
     // add edges
     for (_, dname) in dir_paths.iter().enumerate() {
-        let mut dir_bipart_counter: HashMap<String, u32> = HashMap::new(); // Storing counts of each bipartition
-        let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
+        //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
+        let mut dir_bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
+        //let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
         let compo: Vec<&str> = dname.rsplit('/').collect();
         let experiment_name = compo[0];
         println!("experiment name {}", experiment_name);
@@ -343,15 +345,19 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         
         for (key, node) in &collapse_order  {
             let node = collapse_order.get(key).unwrap();
-            let node_vec = group_bipart.entry(node.id.clone()).or_insert(Vec::<String>::new());
+            let req_group = binary_tree::sort_group_id(&node.id);
+            //let node_vec = group_bipart.entry(node.id.clone()).or_insert(Vec::<String>::new());
+            let dir_group_key = dir_bipart_counter.entry(req_group.clone()).or_insert(HashMap::new());
+            let overall_group_key = bipart_counter.entry(req_group.clone()).or_insert(HashMap::new());
             let node_set:HashSet<u32> = node.id.clone()
                                         .split("_")
                                         .map(|x| x.parse::<u32>()
                                         .unwrap()).collect();
-            binary_tree::compute_bipart_count(node, &mut bipart_counter, &mut dir_bipart_counter, &node_set, node_vec);
+            //binary_tree::compute_bipart_count(node, &mut bipart_counter, &mut dir_bipart_counter, &node_set, node_vec);
+            binary_tree::compute_bipart_count2(node, overall_group_key, dir_group_key);
         }
         let mut bipart_file = File::create(file_list_out.group_bp_splits_file).expect("could not create group bp splits");
-        let _f = util::bipart_writer(&mut bipart_file, &group_bipart); 
+        let _f = util::bipart_writer(&mut bipart_file, &dir_bipart_counter);
 
     } // all files
     
@@ -362,30 +368,34 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .parse::<f64>()
         .expect("could not parse --consensus-thresh option");
     let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as u32;
-    bipart_counter.retain(|key, value| {
-        *value >= half_length 
-    });
-
-    //Storing the consensus bipartitions in a file
-    let mut con_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing the consensus bipartitions per group
-    for (bpart,_) in &bipart_counter {
-        let mut group:Vec<u32>=Vec::new();
-        let txps: Vec<String> = bpart.clone().split("bp").map(String::from).collect();
-        for t in txps{
-            let mut tps:Vec<u32> = t.split("_")
-            .map(|x| x.parse::<u32>().unwrap())
-            .collect();
-            group.append(&mut tps);
-        }
-        group.sort();
-        let group:String = group.iter()
-                                .map(|x| x.to_string())
-                                .collect::<Vec<String>>()
-                                .join("_");
-        
-        con_bipart.entry(group).or_insert(Vec::<String>::new()).push(bpart.clone());
+    for (_,group) in bipart_counter.iter_mut(){
+        //let group_bpart = bipart_counter.get_mut(&group.clone()).unwrap();
+        group.retain(|key, value| {
+            *value > half_length 
+        });
     }
-    println!("{:?}", con_bipart.len());
+    
+
+    // //Storing the consensus bipartitions in a file
+    // let mut con_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing the consensus bipartitions per group
+    // for (bpart,_) in &bipart_counter {
+    //     let mut group:Vec<u32>=Vec::new();
+    //     let txps: Vec<String> = bpart.clone().split("bp").map(String::from).collect();
+    //     for t in txps{
+    //         let mut tps:Vec<u32> = t.split("_")
+    //         .map(|x| x.parse::<u32>().unwrap())
+    //         .collect();
+    //         group.append(&mut tps);
+    //     }
+    //     group.sort();
+    //     let group:String = group.iter()
+    //                             .map(|x| x.to_string())
+    //                             .collect::<Vec<String>>()
+    //                             .join("_");
+        
+    //     con_bipart.entry(group).or_insert(Vec::<String>::new()).push(bpart.clone());
+    // }
+    // println!("{:?}", con_bipart.len());
         
     // if t2g exists also dumps gene level groups
     // let transcript2gene = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
@@ -537,7 +547,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
         
         let mut bipart_file = File::create(file_list_out.cluster_bp_splits_file).expect("could not create cluster bp splits");
-        let _f = util::bipart_writer(&mut bipart_file, &con_bipart); 
+        let _f = util::bipart_writer(&mut bipart_file, &bipart_counter); 
     // //     //call the writer
     //     let _res =
     //         util::write_quants_from_components(&comps, &file_list_out, &gibbs_array, &x, &rec);
