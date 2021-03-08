@@ -61,7 +61,7 @@ pub fn bipart_writer(
     //let l = group_bipart.len();
     //let mut i = 0;
     for (group_id, bpart_hash) in group_bipart {
-        writeln!(g_bp_file, "{}\t{}", group_id, bpart_hash.len())?;
+        writeln!(g_bp_file, "gr\t{}\t{}", group_id, bpart_hash.len())?;
         for (bpart,count) in bpart_hash {
             writeln!(g_bp_file, "{}\t{}", bpart, count)?;
         }
@@ -940,6 +940,7 @@ pub fn eq_experiment_to_graph(
     
     let part_vec = part.iter().collect::<Vec<_>>();
     let mut golden_collapses = 0;
+    let mut t_golden_collapses = 0;
     let mut t_prev=vec!(0);
     'outer: for (_, p) in part_vec.iter().enumerate() {
         if p.len() > 1 {
@@ -962,6 +963,7 @@ pub fn eq_experiment_to_graph(
                     let merge = unionfind_struct.union(source as usize, *t as usize);
                     
                     if merge{
+                        t_golden_collapses +=1 ;
                         let act_source = unionfind_struct.find(source as usize);
                         if act_source == act_target{
                             act_target = par_source;
@@ -978,6 +980,7 @@ pub fn eq_experiment_to_graph(
         }
     }
     println!("Number of golden collapses {}", golden_collapses);
+    println!("Number of true golden collapses {}", t_golden_collapses);
     println!("The refinery code ran for {:?}", part_start.elapsed());
     
     let mut og = pg::Graph::<usize, EdgeInfo, petgraph::Undirected>::new_undirected();

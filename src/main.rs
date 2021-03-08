@@ -384,7 +384,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for (_,group) in bipart_counter.iter_mut(){
         //let group_bpart = bipart_counter.get_mut(&group.clone()).unwrap();
         group.retain(|key, value| {
-            *value > half_length 
+            *value >= half_length 
         });
     }
     //println!("{}", bipart_counter.len());
