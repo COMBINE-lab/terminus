@@ -43,13 +43,18 @@ pub fn find_group_inds(groups:&HashMap<usize,Vec<usize>>, all_groups:&[String], 
 
 pub fn add_biparitions(g_bp_map:&HashMap<String, HashMap<String,u32>>, inds_bp_map:&HashMap<String, Vec<String>>) -> HashMap<String, HashMap<String, u32>> {
     let mut merged_bp_map:HashMap<String, HashMap<String, u32>> = HashMap::new();
-    for (m_group, groups) in inds_bp_map {
+    for (m_group, groups) in inds_bp_map.iter() {
+        //println!("Merged {}", m_group);
+        //println!("{:?}", groups);
         let m_bpart_key = merged_bp_map.entry(sort_group_id(&m_group.clone())).or_insert(HashMap::new());
         for g in groups.iter() {
-            for (bpart, count) in g_bp_map.get(g).unwrap().iter(){
-                println!("{}",count);
+            if !g_bp_map.contains_key(g){
+                panic!("key {} not found", g);
             }
-            //let count = m_bpart_key.entry(bpart.clone()).or_insert(0);
+            for (b_part, count) in g_bp_map.get(g).unwrap().iter(){
+                let c_count = m_bpart_key.entry(b_part.clone()).or_insert(0);
+                *c_count += count;
+            }
         }       
     }
     merged_bp_map
