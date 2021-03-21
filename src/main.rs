@@ -1,5 +1,6 @@
 pub mod salmon_types;
 mod util;
+mod collapse;
 pub mod binary_tree;
 
 extern crate serde_stacker;
@@ -7,7 +8,7 @@ extern crate serde_json;
 extern crate serde_pickle;
 
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::fs::*;
 use std::io::Write;
 use std::io::{self, BufRead, BufReader};
@@ -21,6 +22,7 @@ use petgraph::algo::{connected_components, tarjan_scc};
 use petgraph::unionfind::UnionFind;
 use rayon::prelude::*;
 use std::path::PathBuf;
+
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -292,11 +294,11 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     
     let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
     let mut co_file = File::create(file_list_out.collapse_order_file).expect("could not create collapse order file");
-    let mut co = File::create("co_file.txt").expect("could not create collapse order file");
+    // let mut co = File::create("co_file.txt").expect("could not create collapse order file");
     let _write = util::group_writer(&mut gfile, &groups);
    // let _write = util::order_group_writer(&mut gofile, &group_order, &groups);
     let _write = util::collapse_order_writer(&mut co_file, &groups, &collapse_order);
-    let _write = util::co_id_writer(&mut co, &groups, &collapse_order);
+    //let _write = util::co_id_writer(&mut co, &groups, &collapse_order);
     
     // let file = File::open(ff);
     // let reader = BufReader::new(file.unwrap());
@@ -305,7 +307,8 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     Ok(true)
 }
 
-fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
+fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> { 
+
     let num_threads = sub_m
         .value_of("threads")
         .unwrap()
@@ -323,9 +326,12 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
     let mut bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new();
     let mut global_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
-
+    let mut group_keys:Vec<String> = Vec::new();
+    let mut l = 0; // num of groups in 1st 
+    let mut ntxps = 0; // num of transcripts
+    let mut tnames:Vec<String> = Vec::new();
     // add edges
-    for (_, dname) in dir_paths.iter().enumerate() {
+    for (i, dname) in dir_paths.iter().enumerate() {
         //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
         let mut dir_bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
         //let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
@@ -356,13 +362,48 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                                         .map(|x| x.parse::<u32>()
                                         .unwrap()).collect();
             //binary_tree::compute_bipart_count(node, &mut bipart_counter, &mut dir_bipart_counter, &node_set, node_vec);
+            group_keys.push(req_group.clone());
             binary_tree::compute_bipart_count2(node, overall_group_key, dir_group_key);
         }
-        
+        if i == 0 {
+            l = dir_bipart_counter.len();
+            let file_old = salmon_types::FileList::new(dname.to_string());
+            let eq_class = util::parse_eq(&file_old.eq_file).unwrap();
+            ntxps = eq_class.ntarget;
+            tnames.extend(eq_class.targets.clone());
+        }
+        println!("Number of groups in {} are {}", dname, dir_bipart_counter.len());
         let mut bipart_file = File::create(file_list_out.group_bp_splits_file).expect("could not create group bp splits");
-        let _f = util::bipart_writer(&mut bipart_file, &dir_bipart_counter);
+        let _f = util::mapTrait::bipart_writer(&dir_bipart_counter, &mut bipart_file, &tnames);
 
     } // all files
+    println!("Total number of groups are {}", bipart_counter.len());
+    let m_groups = sub_m
+    .value_of("merge_groups")
+    .unwrap()
+    .parse::<bool>()
+    .expect("could not parse --merge_groups option");
+
+    if m_groups {
+        let all_groups:Vec<String> = bipart_counter.keys().cloned().collect();
+        let g_union = collapse::create_union_find(&all_groups, ntxps as usize);
+        
+        let mut groups = HashMap::new();
+        let mut merged_groups:Vec<String> = Vec::new();
+    //let mut grouped_set = HashSet::new();
+        for i in 0..ntxps {
+            let root = g_union.find(i);
+            if root != i {
+                groups.entry(root).or_insert(vec!(root)).push(i);
+            }
+        }
+        let mut co = File::create("co_file.txt").expect("could not create collapse order file");
+        // let _write = util::group_writer(&mut co, &groups);
+        let m = collapse::find_group_inds(&groups, &all_groups, &g_union);
+        println!("Groups after merging {:?}", m.values().len());        
+        //let _write = util::group_writer2(&mut co, &m);
+
+    }
     
     // filter based on the threshold
     let consensus_thresh = sub_m
@@ -540,12 +581,12 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
         
         let mut bipart_file = File::create(file_list_out.cluster_bp_splits_file.clone()).expect("could not create cluster bp splits");
-        let _f = util::bipart_writer(&mut bipart_file, &bipart_counter); 
+        let _f = util::mapTrait::bipart_writer(&bipart_counter, &mut bipart_file, &tnames);
     // //     //call the writer
         let _res =
             util::write_quants_from_components(&comps, &file_list_out, &gibbs_array, &x, &rec);
     });
-
+    
     Ok(true)
 }
 
@@ -657,6 +698,14 @@ fn main() -> io::Result<()> {
                 .takes_value(true)
                 .default_value("0.5")
                 .help("threshold for edge consensus")
+            )
+            .arg(
+                Arg::with_name("merge_groups")
+                .long("merge-groups")
+                .short("m")
+                .takes_value(true)
+                .default_value("false")
+                .help("Merge groups")
             )
         ).get_matches();
 

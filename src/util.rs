@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::convert::TryInto;
 use std::f64;
 use std::fs::*;
@@ -53,21 +53,56 @@ use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRe
 //     }
 //     Ok(true)
 // }
-
-pub fn bipart_writer(
-    g_bp_file: &mut File,
-    group_bipart: &HashMap<String, HashMap<String, u32>>
-) ->  Result<bool, io::Error> {
-    //let l = group_bipart.len();
-    //let mut i = 0;
-    for (group_id, bpart_hash) in group_bipart {
-        writeln!(g_bp_file, "gr\t{}\t{}", group_id, bpart_hash.len())?;
-        for (bpart,count) in bpart_hash {
-            writeln!(g_bp_file, "{}\t{}", bpart, count)?;
-        }
-    }
-    Ok(true)
+fn conv_names(g:&String, tnames:&[String]) -> String {
+    let s:Vec<String> = g.clone().split("_").map(|x| tnames[x.parse::<usize>().unwrap()].clone()).collect();
+    return s.join(",");
 }
+
+pub trait mapTrait {
+ fn bipart_writer(&self, file:&mut File, tnames:&[String]) -> Result<bool, io::Error>;
+}
+
+impl mapTrait for HashMap<String, HashMap<String, u32>> {
+    fn bipart_writer(&self, g_bp_file:&mut File, tnames:&[String]) -> Result<bool, io::Error> {
+        //let l = group_bipart.len();
+        //let mut i = 0;
+        for (group_id, bpart_hash) in self {
+            writeln!(g_bp_file, "gr\t{}\t{}", conv_names(&group_id, &tnames), bpart_hash.len())?;
+            for (bpart,count) in bpart_hash {
+                writeln!(g_bp_file, "{}\t{}", conv_names(&bpart, &tnames), count)?;
+            }
+        }
+        Ok(true)
+    }
+}
+impl mapTrait for BTreeMap<String, HashMap<String, u32>>  {
+    fn bipart_writer(&self, g_bp_file:&mut File, tnames:&[String]) -> Result<bool, io::Error> {
+        //let l = group_bipart.len();
+        //let mut i = 0;
+        for (group_id, bpart_hash) in self {
+            writeln!(g_bp_file, "gr\t{}\t{}", group_id, bpart_hash.len())?;
+            for (bpart,count) in bpart_hash {
+                writeln!(g_bp_file, "{}\t{}", bpart, count)?;
+            }
+        }
+        Ok(true)
+    }
+}
+// pub fn bipart_writer<T:mapTrait>(
+//     g_bp_file: &mut File,
+//     group_bipart: &T
+//     //group_bipart: &BTreeMap
+// ) ->  Result<bool, io::Error> {
+//     //let l = group_bipart.len();
+//     //let mut i = 0;
+//     for (group_id, bpart_hash) in group_bipart {
+//         writeln!(g_bp_file, "gr\t{}\t{}", group_id, bpart_hash.len())?;
+//         for (bpart,count) in bpart_hash {
+//             writeln!(g_bp_file, "{}\t{}", bpart, count)?;
+//         }
+//     }
+//     Ok(true)
+// }
 
 pub fn group_writer(
     gfile: &mut File,
@@ -79,6 +114,19 @@ pub fn group_writer(
     for (group_id, group) in groups {
         let strings: Vec<String> = group.iter().map(|n| n.to_string()).collect();
         writeln!(gfile, "{},{}", group_id.to_string(), strings.join(","))?;
+    }
+    Ok(true)
+}
+
+pub fn group_writer2(
+    gfile: &mut File,
+    groups: &HashMap<String, Vec<String>>,
+) -> Result<bool, io::Error> {
+    //let mut buffer = File::create("groups.txt")?;
+    //let mut buffer = File::create("foo.txt").unwrap();
+    //let mut file = GzEncoder::new(file_handle, Compression::default());
+    for (group_id, group) in groups {
+        writeln!(gfile, "{},{}", group_id.to_string(), group.join(","))?;
     }
     Ok(true)
 }
