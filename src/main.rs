@@ -149,6 +149,8 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
         // fill targets from eq_class
         let tnames = eq_class.targets.clone();
+        
+        
         let mut global_id = 0u32;
         for i in 0..tnames.len() {
             let tname = tnames[i].clone();
@@ -324,7 +326,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let prefix: String = sub_m.value_of("out").unwrap().to_string();
 
     //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
-    let mut bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new();
+    let mut bipart_counter: HashMap<String, BTreeMap<String, u32>> = HashMap::new();
     let mut global_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
     let mut group_keys:Vec<String> = Vec::new();
     let mut l = 0; // num of groups in 1st 
@@ -333,7 +335,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // add edges
     for (i, dname) in dir_paths.iter().enumerate() {
         //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
-        let mut dir_bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
+        let mut dir_bipart_counter: HashMap<String, BTreeMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
         //let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
         let compo: Vec<&str> = dname.rsplit('/').collect();
         let experiment_name = compo[0];
@@ -355,8 +357,8 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let node = collapse_order.get(key).unwrap();
             let req_group = binary_tree::sort_group_id(&node.id);
             //let node_vec = group_bipart.entry(node.id.clone()).or_insert(Vec::<String>::new());
-            let dir_group_key = dir_bipart_counter.entry(req_group.clone()).or_insert(HashMap::new());
-            let overall_group_key = bipart_counter.entry(req_group.clone()).or_insert(HashMap::new());
+            let dir_group_key = dir_bipart_counter.entry(req_group.clone()).or_insert(BTreeMap::new());
+            let overall_group_key = bipart_counter.entry(req_group.clone()).or_insert(BTreeMap::new());
             let node_set:HashSet<u32> = node.id.clone()
                                         .split("_")
                                         .map(|x| x.parse::<u32>()
@@ -370,7 +372,12 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let file_old = salmon_types::FileList::new(dname.to_string());
             let eq_class = util::parse_eq(&file_old.eq_file).unwrap();
             ntxps = eq_class.ntarget;
-            tnames.extend(eq_class.targets.clone());
+         
+            for i in 0..eq_class.targets.len()
+            {
+                tnames.push(i.to_string());
+            }
+            //tnames.extend(eq_class.targets.clone());
         }
         println!("Number of groups in {} are {}", dname, dir_bipart_counter.len());
         let mut bipart_file = File::create(file_list_out.group_bp_splits_file).expect("could not create group bp splits");
@@ -385,24 +392,10 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     .expect("could not parse --merge_groups option");
 
     if m_groups {
-        let all_groups:Vec<String> = bipart_counter.keys().cloned().collect();
-        let g_union = collapse::create_union_find(&all_groups, ntxps as usize);
-        
-        let mut groups = HashMap::new();
-        let mut merged_groups:Vec<String> = Vec::new();
-    //let mut grouped_set = HashSet::new();
-        for i in 0..ntxps {
-            let root = g_union.find(i);
-            if root != i {
-                groups.entry(root).or_insert(vec!(root)).push(i);
-            }
-        }
+        bipart_counter = collapse::merge_groups(&bipart_counter, ntxps);
+        println!("Groups after merging {:?}", bipart_counter.len());        
         let mut co = File::create("co_file.txt").expect("could not create collapse order file");
-        // let _write = util::group_writer(&mut co, &groups);
-        let m = collapse::find_group_inds(&groups, &all_groups, &g_union);
-        println!("Groups after merging {:?}", m.values().len());        
-        //let _write = util::group_writer2(&mut co, &m);
-
+        let _write = util::mapTrait::bipart_writer(&bipart_counter, &mut co, &tnames);
     }
     
     // filter based on the threshold
@@ -428,7 +421,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             *value >= half_length 
         });
     }
-    //println!("{}", bipart_counter.len());
+
 
         
     // if t2g exists also dumps gene level groups
@@ -598,7 +591,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.0")
+        .version("0.1.4")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(

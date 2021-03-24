@@ -1,6 +1,5 @@
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, BTreeMap, HashSet};
 
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>());
@@ -142,8 +141,8 @@ pub fn compute_bipart_count(node:&TreeNode, bp_map:&mut HashMap<String,u32>,
     }
 }
 
-pub fn compute_bipart_count2(node:&TreeNode, bp_map:&mut HashMap<String,u32>,
-    dir_bp_map:&mut HashMap<String,u32>) {
+pub fn compute_bipart_count2(node:&TreeNode, bp_map:&mut BTreeMap<String,u32>,
+    dir_bp_map:&mut BTreeMap<String,u32>) {
    if ! node.left.is_none(){
        //println!("root is {}", node.id);
        //let split = get_bipart_split(root_set, &node.left.as_ref().unwrap().id);

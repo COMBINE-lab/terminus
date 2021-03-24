@@ -30,6 +30,7 @@ use refinery::Partition;
 //use rgsl::statistics::correlation;
 use crate::binary_tree::{TreeNode};
 use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
+use std::iter::FromIterator;
 
 // General functions to r/w files
 // files to be handled
@@ -68,21 +69,25 @@ impl mapTrait for HashMap<String, HashMap<String, u32>> {
         //let mut i = 0;
         for (group_id, bpart_hash) in self {
             writeln!(g_bp_file, "gr\t{}\t{}", conv_names(&group_id, &tnames), bpart_hash.len())?;
-            for (bpart,count) in bpart_hash {
+            let mut v = Vec::from_iter(bpart_hash);
+            v.sort_by(|&(_, a), &(_, b)| b.cmp(&a));
+            for (bpart,count) in v {
                 writeln!(g_bp_file, "{}\t{}", conv_names(&bpart, &tnames), count)?;
             }
         }
         Ok(true)
     }
 }
-impl mapTrait for BTreeMap<String, HashMap<String, u32>>  {
+impl mapTrait for HashMap<String, BTreeMap<String, u32>>  {
     fn bipart_writer(&self, g_bp_file:&mut File, tnames:&[String]) -> Result<bool, io::Error> {
         //let l = group_bipart.len();
         //let mut i = 0;
         for (group_id, bpart_hash) in self {
-            writeln!(g_bp_file, "gr\t{}\t{}", group_id, bpart_hash.len())?;
-            for (bpart,count) in bpart_hash {
-                writeln!(g_bp_file, "{}\t{}", bpart, count)?;
+            writeln!(g_bp_file, "gr\t{}\t{}", conv_names(&group_id, &tnames), bpart_hash.len())?;
+            let mut v = Vec::from_iter(bpart_hash);
+            v.sort_by(|&(_, a), &(_, b)| b.cmp(&a));
+            for (bpart,count) in v {
+                writeln!(g_bp_file, "{}\t{}", conv_names(&bpart, &tnames), count)?;
             }
         }
         Ok(true)
