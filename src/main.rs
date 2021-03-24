@@ -326,7 +326,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let prefix: String = sub_m.value_of("out").unwrap().to_string();
 
     //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
-    let mut bipart_counter: HashMap<String, BTreeMap<String, u32>> = HashMap::new();
+    let mut bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new();
     let mut global_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
     let mut group_keys:Vec<String> = Vec::new();
     let mut l = 0; // num of groups in 1st 
@@ -335,7 +335,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // add edges
     for (i, dname) in dir_paths.iter().enumerate() {
         //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
-        let mut dir_bipart_counter: HashMap<String, BTreeMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
+        let mut dir_bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
         //let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
         let compo: Vec<&str> = dname.rsplit('/').collect();
         let experiment_name = compo[0];
@@ -357,8 +357,8 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let node = collapse_order.get(key).unwrap();
             let req_group = binary_tree::sort_group_id(&node.id);
             //let node_vec = group_bipart.entry(node.id.clone()).or_insert(Vec::<String>::new());
-            let dir_group_key = dir_bipart_counter.entry(req_group.clone()).or_insert(BTreeMap::new());
-            let overall_group_key = bipart_counter.entry(req_group.clone()).or_insert(BTreeMap::new());
+            let dir_group_key = dir_bipart_counter.entry(req_group.clone()).or_insert(HashMap::new());
+            let overall_group_key = bipart_counter.entry(req_group.clone()).or_insert(HashMap::new());
             let node_set:HashSet<u32> = node.id.clone()
                                         .split("_")
                                         .map(|x| x.parse::<u32>()
@@ -591,7 +591,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.4")
+        .version("0.1.40")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(
