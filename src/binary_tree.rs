@@ -187,6 +187,17 @@ pub fn sort_group_id(group: &str) -> String{
             .join("_");
     group
 }
+
+pub fn get_binary_newick_string(node:&TreeNode) -> String {
+    if node.left.is_none() && node.right.is_none() {
+        return node.id.clone();
+    }
+    else {
+        let l = get_binary_newick_string(node.left.as_ref().unwrap());
+        let r = get_binary_newick_string(node.right.as_ref().unwrap());
+        return format!("({},{})",l.clone(),r.clone());
+    }
+}
 // fn main () {
 //     let x = TreeNode {id:"12".to_string(), left: None, right: None};
 //     // let y = TreeNode {id:"12".to_string(), left: None, right: None};
