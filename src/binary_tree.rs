@@ -188,7 +188,7 @@ pub fn sort_group_id(group: &str) -> String{
     group
 }
 
-pub fn get_binary_newick_string(node:&TreeNode) -> String {
+pub fn get_binary_rooted_newick_string(node:&TreeNode) -> String {
     if node.left.is_none() && node.right.is_none() {
         return node.id.clone();
     }

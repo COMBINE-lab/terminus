@@ -5,6 +5,35 @@ use std::io::BufReader;
 use std::path::PathBuf;
 
 #[derive(Debug)]
+pub struct ConsensusFileList {
+    pub cons_nwk_file: PathBuf,
+    pub cluster_bp_splits_file: PathBuf,
+    pub merged_groups_file: PathBuf,
+    //pub groups_length: PathBuf,
+}
+impl ConsensusFileList {
+    pub fn new(dname: String) -> ConsensusFileList {
+        let dir = PathBuf::from(dname);
+        if !dir.as_path().exists() {
+            panic!("The directory {} did not exist", dir.to_str().unwrap());
+        }
+        if !dir.as_path().is_dir() {
+            panic!(
+                "The path {} did not point to a valid directory",
+                dir.to_str().unwrap()
+            );
+        }
+        
+        ConsensusFileList {
+            cluster_bp_splits_file: dir.as_path().join("cluster_bipart_splits.txt"),
+            cons_nwk_file: dir.as_path().join("cluster_nwk.txt"),
+            merged_groups_file: dir.as_path().join("merged_groups_length.txt"),
+      //      groups_length: dir.as_path().join("groups_length.txt")
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct FileList {
     pub prefix: PathBuf,
     pub quant_file: PathBuf,
@@ -16,13 +45,13 @@ pub struct FileList {
     pub cmd_file: PathBuf,
     pub collapsed_log_file: PathBuf,
     pub group_file: PathBuf,
-    pub group_order_file: PathBuf,
     pub collapse_order_file: PathBuf,
     pub delta_file: PathBuf,
     pub cluster_file: PathBuf,
     pub gene_cluster_file: PathBuf,
     pub group_bp_splits_file: PathBuf,
-    pub cluster_bp_splits_file: PathBuf
+    pub cluster_bp_splits_file: PathBuf,
+    pub group_nwk_file: PathBuf,
 }
 
 // construct the files
@@ -66,12 +95,14 @@ impl FileList {
             cluster_file: dir.as_path().join("clusters.txt"),
             collapsed_log_file: dir.as_path().join("collapsed.log"),
             group_file: dir.as_path().join("groups.txt"),
-            group_order_file: dir.as_path().join("order.txt"),
+            //group_order_file: dir.as_path().join("order.txt"),
             collapse_order_file: dir.as_path().join("collapse_order.json"),
             delta_file: dir.as_path().join("delta.log"),
             gene_cluster_file: dir.as_path().join("gene_cluster.log"),
             group_bp_splits_file: dir.as_path().join("group_bipart_splits.txt"),
             cluster_bp_splits_file: dir.as_path().join("cluster_bipart_splits.txt"),
+            group_nwk_file: dir.as_path().join("group_nwk.txt"),
+            //cluster_nwk_file: dir.as_path().join("cluster_nwk.txt"),
         }
     }
 }

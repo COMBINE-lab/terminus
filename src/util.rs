@@ -28,7 +28,7 @@ use rand_pcg::Pcg64;
 use refinery::Partition;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
-use crate::binary_tree::{TreeNode};
+use crate::binary_tree::{TreeNode, sort_group_id};
 use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
 use std::iter::FromIterator;
 
@@ -150,7 +150,7 @@ pub fn collapse_order_writer(
     // co_updated.insert(1, c_order[1].clone());
     // co_updated.insert(2, c_order[10].clone());
     for (group_id, _) in groups {
-        co_updated.insert(c_order[*group_id].id.clone(), c_order[*group_id].clone());
+        co_updated.insert(sort_group_id(&c_order[*group_id].id), c_order[*group_id].clone());
     }
     //println!("{:?}", co_updated);
     let err_write = format!("Could not create/write collapsed_order.json in {:?}", co_file);

@@ -2,7 +2,15 @@ use serde::{Serialize, Deserialize};
 use petgraph::unionfind::UnionFind;
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::iter::FromIterator;
-use crate::binary_tree::{sort_group_id};
+use std::fs::*;
+use std::io::Write;
+use std::io::{self, BufRead, BufReader};
+extern crate serde_stacker;
+extern crate serde_json;
+extern crate serde_pickle;
+
+use crate::binary_tree::{sort_group_id, TreeNode};
+use crate::salmon_types::{FileList,ConsensusFileList};
 
 fn create_union_find(g:&[String], ntxps:usize) -> UnionFind<usize> {
     let mut unionfind_struct = UnionFind::new(ntxps);
@@ -49,6 +57,21 @@ fn get_merged_bparts(groups:&HashMap<usize,Vec<usize>>,
     return merged_bparts;
 }
 
+fn find_groups_in_merged(groups:&HashMap<usize,Vec<usize>>, all_groups:&[String], uf:&UnionFind<usize>) -> HashMap<String, Vec<String>> {
+    /// Given a grouped hashmap that contains all child txps under a main txp (together will form a (merged) group), 
+    /// vector of all keys of a group and a union find, returns a hashmap containing merged group and old groups
+    let mut merged_groups:HashMap<String,Vec<String>> = HashMap::new();
+    for (j, old_g) in all_groups.iter().enumerate(){
+        let f_txp = old_g.clone().split("_").map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>()[0];
+        let g_ind = uf.find(f_txp); //the vertex index
+        let strings: Vec<String> = groups[&g_ind].iter().map(|n| n.to_string()).collect();
+        let m_group = format!("{}", strings.join("_"));
+        merged_groups.entry(m_group).or_insert_with(Vec::new).push(all_groups[j].clone());
+    }
+    return merged_groups
+}
+
+
 pub fn merge_groups(all_groups_bpart:&HashMap<String, HashMap<String, u32>>, 
                     ntxps:usize) -> HashMap<String, HashMap<String, u32>> {
 
@@ -61,6 +84,89 @@ pub fn merge_groups(all_groups_bpart:&HashMap<String, HashMap<String, u32>>,
             groups.entry(root).or_insert(vec!(root)).push(i);
         }
     }
-    get_merged_bparts(&groups, &all_groups_bpart, &g_union)
+    get_merged_bparts(&groups, &all_groups_bpart, &g_union)  
+}
+
+fn comp_diff(m_group:&String, oth_groups:&[String]) -> Vec<usize>{
+    let req_vec:Vec<String>=Vec::new();
+    let par_set: HashSet<usize> = m_group.split("_").map(|x| x.parse::<usize>().unwrap()).collect();
+    let mut child_set: HashSet<usize> = HashSet::new();
+    for g in oth_groups.iter() {
+        let c: HashSet<usize> = g.split("_").map(|x| x.parse::<usize>().unwrap()).collect();
+        child_set.extend(&c);
+    }
+    let diff:Vec<usize> =par_set.difference(&child_set).cloned().collect();
+    diff
+}
+
+fn get_group_trees(merged_group:&String, groups:&[String], samp_group_trees:&[HashMap<String,TreeNode>]) -> (String, HashMap<usize, Vec<usize>>) {
+    /// Returns a string that contains merged group and total sample count along with child group and the number of sample that child group appears in 
     
-} 
+    let mut hash_group:HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut g_inf=String::from("");
+    for (_i,samp_hash) in samp_group_trees.iter().enumerate() {
+        let mut g_vec:Vec<String> = Vec::new();
+        let s_vec = hash_group.entry(_i).or_insert_with(Vec::new);
+        for (_j,g) in groups.iter().enumerate() {
+            if samp_hash.contains_key(g){
+                g_vec.push(g.clone());
+                s_vec.push(_j);
+            }
+        }
+        let gs = g_vec.join(",");
+        g_inf.push_str(&format!("\t{}\t{}", _i.to_string(), gs));
+    }
+//    println!("{}\t{}", merged_group.clone(), count);
+    g_inf.insert_str(0, &format!("{}", merged_group));
+    (g_inf, hash_group)
+}
+
+fn write_file(f:&mut File, st:String) -> Result<bool, io::Error> {
+    writeln!(f, "{}", st)?;
+    Ok(true)
+}
+
+// fn get_cons(out:&String, samp_group_ind:HashMap<usize, Vec<usize>>, merged_group:&String, groups:&String) {
+//     nwks
+// }
+
+pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:usize) {
+    let g_union = create_union_find(&all_groups, ntxps as usize);
+    let mut groups = HashMap::new();
+    for i in 0..ntxps {
+        let root = g_union.find(i);
+        if root != i {
+            groups.entry(root).or_insert(vec!(root)).push(i);
+        }
+    }
+    let mg = find_groups_in_merged(&groups, &all_groups, &g_union);//merged groups
+    println!("Length of groups after merging {}", mg.len());
+    
+    println!("Reading group trees");
+    let mut samp_group_trees:Vec<HashMap<String,TreeNode>> = Vec::new();
+    // Storing group trees in each sample in an array
+    for (i, dname) in dir_paths.iter().enumerate() {
+        let compo: Vec<&str> = dname.rsplit('/').collect();
+        let experiment_name = compo[0];
+        let mut prefix_path = out.clone();
+        prefix_path.push('/');
+        prefix_path.push_str(experiment_name);
+
+        let file_list_out = FileList::new(prefix_path);
+        let file = File::open(file_list_out.collapse_order_file);
+        let reader = BufReader::new(file.unwrap());
+    
+        let mut deserializer = serde_json::Deserializer::from_reader(reader);
+        deserializer.disable_recursion_limit();
+        samp_group_trees.push(HashMap::deserialize(&mut deserializer).unwrap());
+    }
+    println!("Finished reading group trees");
+    let file_list_out = ConsensusFileList::new(out.clone());
+    let mut mg_file = File::create(file_list_out.merged_groups_file).expect("could not create merged group file");
+    let mut clust_nwk_file = File::create(file_list_out.cons_nwk_file).expect("could not create cluster newick file");
+    for (merged_group, old_group) in mg {
+        let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees);
+        let _t = write_file(&mut mg_file, group_inf.0);
+    }
+    
+}

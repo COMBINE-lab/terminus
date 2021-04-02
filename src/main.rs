@@ -322,7 +322,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .build_global()
         .unwrap_or_else(|_| panic!("could not set number of rayon threads to {}", num_threads));
 
-    let dir_paths: Vec<_> = sub_m.values_of("dirs").unwrap().collect();
+    let dir_paths: Vec<&str> = sub_m.values_of("dirs").unwrap().collect();
     let prefix: String = sub_m.value_of("out").unwrap().to_string();
 
     //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
@@ -391,11 +391,24 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     .parse::<bool>()
     .expect("could not parse --merge_groups option");
 
+    let m_type = sub_m
+    .value_of("merge_type")
+    .unwrap()
+    .to_string();
+    
+
     if m_groups {
-        bipart_counter = collapse::merge_groups(&bipart_counter, ntxps);
-        println!("Groups after merging {:?}", bipart_counter.len());        
-        let mut co = File::create("co_file.txt").expect("could not create collapse order file");
-        let _write = util::mapTrait::bipart_writer(&bipart_counter, &mut co, &tnames);
+        println!("{}",m_type);
+        if m_type == "BP"{
+            bipart_counter = collapse::merge_groups(&bipart_counter, ntxps);
+            println!("Groups after merging {:?}", bipart_counter.len());        
+            let mut co = File::create("co_file.txt").expect("could not create collapse order file");
+            let _write = util::mapTrait::bipart_writer(&bipart_counter, &mut co, &tnames);
+        }
+        else if m_type == "phylip"{
+            let all_groups:Vec<String> = bipart_counter.keys().cloned().collect();
+            collapse::use_phylip(&dir_paths, &prefix, &all_groups, ntxps);
+        }
     }
     
     // filter based on the threshold
@@ -591,7 +604,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.40")
+        .version("0.1.42")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(
@@ -699,6 +712,13 @@ fn main() -> io::Result<()> {
                 .takes_value(true)
                 .default_value("false")
                 .help("Merge groups")
+            )
+            .arg(
+                Arg::with_name("merge_type")
+                .long("merge_type")
+                .takes_value(true)
+                .default_value("Phylip")
+                .help("Merging method")
             )
         ).get_matches();
 
