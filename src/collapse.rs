@@ -5,6 +5,8 @@ use std::iter::FromIterator;
 use std::fs::*;
 use std::io::Write;
 use std::io::{self, BufRead, BufReader};
+use std::path::PathBuf;
+use run_script::ScriptOptions;
 extern crate serde_stacker;
 extern crate serde_json;
 extern crate serde_pickle;
@@ -68,7 +70,7 @@ fn find_groups_in_merged(groups:&HashMap<usize,Vec<usize>>, all_groups:&[String]
         let m_group = format!("{}", strings.join("_"));
         merged_groups.entry(m_group).or_insert_with(Vec::new).push(all_groups[j].clone());
     }
-    return merged_groups
+    return merged_groups;
 }
 
 
@@ -100,7 +102,7 @@ fn comp_diff(m_group:&String, oth_groups:&[String]) -> Vec<usize>{
 }
 
 fn get_group_trees(merged_group:&String, groups:&[String], samp_group_trees:&[HashMap<String,TreeNode>]) -> (String, Vec<String>) {
-    /// Returns a string that contains merged group and total sample count along with child group and the number of sample that child group appears in 
+    /// Returns a tuple that contains merged group and total sample count along with child group and the number of sample that child group appears in 
     
     let mut samp_nwk:Vec<String> = Vec::new();
     let mut g_inf=String::from("");
@@ -158,9 +160,30 @@ fn write_file(f:&mut File, st:String) -> Result<bool, io::Error> {
     Ok(true)
 }
 
-// fn get_cons(out:&String, samp_group_ind:HashMap<usize, Vec<usize>>, merged_group:&String, groups:&String) {
-//     nwks
-// }
+fn get_cons(out:&String, samp_trees:&[String]) -> String {
+    let dir = PathBuf::from(out);
+    let inp_nwk = dir.as_path().join("inp_nwk.txt");
+    let mut f_inp = File::create(inp_nwk).expect("could not create input newick file");
+    for g in samp_trees.iter(){
+        let _t=write_file(&mut f_inp, g.clone());
+    }
+    let (code, output, error) = run_script::run_script!(
+        r#"
+        ../consense < ../input
+         exit 0
+         "#
+    )
+    .unwrap();
+    let cons_nwk = read_to_string("outtree")
+        .expect("Something went wrong reading the file");
+    let (code, output, error) = run_script::run_script!(
+        r#"
+        rm out*
+            exit 0
+            "#
+    ).unwrap();
+    cons_nwk
+}
 
 pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:usize) {
     let g_union = create_union_find(&all_groups, ntxps as usize);
@@ -203,9 +226,12 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     for (merged_group, old_group) in mg {
         let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees);
         let _t = write_file(&mut mg_file, group_inf.0);
+        println!("Computing cluster for group {}", merged_group.clone());
         for (_i, g) in group_inf.1.iter().enumerate(){
             let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
         }
+        
+        let _t = write_file(&mut clust_nwk_file, get_cons(out, &group_inf.1));
     }
     
 }
