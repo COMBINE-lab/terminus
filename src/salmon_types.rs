@@ -52,6 +52,7 @@ pub struct FileList {
     pub group_bp_splits_file: PathBuf,
     pub cluster_bp_splits_file: PathBuf,
     pub group_nwk_file: PathBuf,
+    pub mgroup_nwk_file: PathBuf,
 }
 
 // construct the files
@@ -102,6 +103,7 @@ impl FileList {
             group_bp_splits_file: dir.as_path().join("group_bipart_splits.txt"),
             cluster_bp_splits_file: dir.as_path().join("cluster_bipart_splits.txt"),
             group_nwk_file: dir.as_path().join("group_nwk.txt"),
+            mgroup_nwk_file: dir.as_path().join("mgroup_nwk.txt"),
             //cluster_nwk_file: dir.as_path().join("cluster_nwk.txt"),
         }
     }

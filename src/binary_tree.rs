@@ -193,8 +193,8 @@ pub fn get_binary_rooted_newick_string(node:&TreeNode) -> String {
         return node.id.clone();
     }
     else {
-        let l = get_binary_newick_string(node.left.as_ref().unwrap());
-        let r = get_binary_newick_string(node.right.as_ref().unwrap());
+        let l = get_binary_rooted_newick_string(node.left.as_ref().unwrap());
+        let r = get_binary_rooted_newick_string(node.right.as_ref().unwrap());
         return format!("({},{})",l.clone(),r.clone());
     }
 }
