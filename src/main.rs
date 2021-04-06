@@ -146,7 +146,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
         let mut genevecpresent: Vec<bool> = vec![false; x.num_valid_targets as usize];
         let mut notfound = 0;
-
+        
         // fill targets from eq_class
         let tnames = eq_class.targets.clone();
         
@@ -177,7 +177,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             }
 
             // allele_name_map.insert(tname.clone(), splitted_names[0].to_string());
-
+            
             match t2gmap.get(&tname) {
                 Some(gname) => match genemap.get(gname) {
                     Some(geneid) => {
@@ -189,12 +189,12 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                     }
                 },
                 None => {
-                    //println!("transcript name not found {}", tname);
+                    println!("transcript name not found {}", tname);
                     notfound += 1;
                 }
             }
         }
-        
+        //println!("{:?}",genevec);
         //println!("{:?}",allele_map);
         if notfound > 0 {
             println!("{} transcripts not in {:?}", notfound, transcript2gene);
@@ -373,11 +373,11 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let eq_class = util::parse_eq(&file_old.eq_file).unwrap();
             ntxps = eq_class.ntarget;
          
-            for i in 0..eq_class.targets.len()
-            {
-                tnames.push(i.to_string());
-            }
-            //tnames.extend(eq_class.targets.clone());
+            // for i in 0..eq_class.targets.len()
+            // {
+            //     tnames.push(i.to_string());
+            // }
+            tnames.extend(eq_class.targets.clone());
         }
         println!("Number of groups in {} are {}", dname, dir_bipart_counter.len());
         let mut bipart_file = File::create(file_list_out.group_bp_splits_file).expect("could not create group bp splits");
@@ -417,181 +417,186 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .unwrap()
         .parse::<f64>()
         .expect("could not parse --consensus-thresh option");
-    let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as u32;
-    let global_filtered_graph = global_graph.filter_map(
-        |_, n| Some(*n),
-        |_, &e| {
-            if (e as usize) >= half_length as usize{
-                Some(e)
-            } else {
-                None
-            }
-        },
-    );
-    for (_,group) in bipart_counter.iter_mut(){
-        //let group_bpart = bipart_counter.get_mut(&group.clone()).unwrap();
-        group.retain(|key, value| {
-            *value >= half_length 
-        });
+    if m_type == "BP" {
+        let half_length = (dir_paths.len() as f64 * consensus_thresh).floor() as u32;
+        let global_filtered_graph = global_graph.filter_map(
+            |_, n| Some(*n),
+            |_, &e| {
+                if (e as usize) >= half_length as usize{
+                    Some(e)
+                } else {
+                    None
+                }
+            },
+        );
+        for (_,group) in bipart_counter.iter_mut(){
+            //let group_bpart = bipart_counter.get_mut(&group.clone()).unwrap();
+            group.retain(|key, value| {
+                *value >= half_length 
+            });
+        }
+        let mut total_in_group = 0;
+        let mut num_group = 0;
+        for (bipart_split, _) in bipart_counter.iter() {
+            total_in_group += bipart_split.split("_").collect::<Vec<&str>>().len() + 1; //+1 for bp
+            num_group += 1;
+        }
+        let term_info = salmon_types::TerminusInfo {
+            num_nontrivial_groups: num_group,
+            num_targets_in_nontrivial_group: total_in_group,
+        };
+        println!(
+            "total number of transcripts in a non-trivial group : {}",
+            total_in_group
+        );
+        println!("total consensus clusters : {}", num_group);
+        let file_list_out = salmon_types::ConsensusFileList::new(prefix.clone());
+        let mut bipart_file = File::create(file_list_out.cluster_bp_splits_file.clone()).expect("could not create cluster bp splits");
+        let _f = util::mapTrait::bipart_writer(&bipart_counter, &mut bipart_file, &tnames);
     }
-
 
         
     // if t2g exists also dumps gene level groups
-    let transcript2gene = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
-    println!(
-        "transcript2gene file: {:?}",
-        transcript2gene.to_str().unwrap()
-    );
-    if transcript2gene.as_path().is_file() {
-        // get name of the transcripts from any directory
-        println!("=============Reducing to gene groups=============");
-        let mut t2gmap: HashMap<String, String> = HashMap::new();
-        let mut genemap: HashMap<String, u32> = HashMap::new();
-        let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
-        println!("{} genes exist in the file", genenames.len());
+    // let transcript2gene = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
+    // println!(
+    //     "transcript2gene file: {:?}",
+    //     transcript2gene.to_str().unwrap()
+    // );
+    // if transcript2gene.as_path().is_file() {
+    //     // get name of the transcripts from any directory
+    //     println!("=============Reducing to gene groups=============");
+    //     let mut t2gmap: HashMap<String, String> = HashMap::new();
+    //     let mut genemap: HashMap<String, u32> = HashMap::new();
+    //     let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
+    //     println!("{} genes exist in the file", genenames.len());
 
-        let file_list = salmon_types::FileList::new((dir_paths[0]).to_string());
-        let x = util::parse_json(&file_list.mi_file).expect("json file could not be parsed");
-        let rec =
-            util::parse_quant(&file_list.quant_file, &x).expect("quant file could not be parsed");
+    //     let file_list = salmon_types::FileList::new((dir_paths[0]).to_string());
+    //     let x = util::parse_json(&file_list.mi_file).expect("json file could not be parsed");
+    //     let rec =
+    //         util::parse_quant(&file_list.quant_file, &x).expect("quant file could not be parsed");
 
-        let mut genevec: Vec<u32> = vec![0u32; rec.len()];
-        let mut genevecpresent: Vec<bool> = vec![false; rec.len()];
-        let mut notfound = 0;
-        for i in 0..rec.len() {
-            let tname = rec[i].Name.clone();
-            // println!("Searching for {:?}", tname);
-            match t2gmap.get(&tname) {
-                Some(gname) => match genemap.get(gname) {
-                    Some(geneid) => {
-                        genevec[i] = *geneid;
-                        genevecpresent[i] = true;
-                    }
-                    None => {
-                        println!("Not found {:?}, {:?}", tname, gname);
-                    }
-                },
-                None => {
-                    //println!("transcript name not found {}", tname);
-                    notfound += 1;
-                }
-            }
-        }
-        if notfound > 0 {
-            println!("{} transcripts not in {:?}", notfound, transcript2gene);
-        }
-        let mut global_gene_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
-        if global_gene_graph.node_count() == 0 {
-            for i in 0..genenames.len() {
-                let idx = global_gene_graph.add_node(i as usize);
-                // the index assigned by the graph should be the
-                // order in which we add these
-                debug_assert_eq!(i as usize, idx.index());
-            }
-        }
-        println!("Initial graph constructed");
-        for edge in global_filtered_graph.raw_edges() {
-            let source = edge.source().index();
-            let end = edge.target().index();
-            if !(genevecpresent[source] && genevecpresent[end]) {
-                continue;
-            }
-            let na = genevec[source];
-            let nb = genevec[end];
-            let va = pg::graph::NodeIndex::new(na as usize);
-            let vb = pg::graph::NodeIndex::new(nb as usize);
-            let e = global_gene_graph.find_edge(va, vb);
-            match e {
-                Some(ei) => {
-                    let ew = global_gene_graph
-                        .edge_weight_mut(ei)
-                        .expect("edge weight not found");
-                    *ew += 1;
-                }
-                None => {
-                    global_gene_graph.add_edge(va, vb, 1);
-                }
-            }
-        }
-        // components
-        let mut comps_gene: Vec<Vec<_>> = tarjan_scc(&global_gene_graph);
-        // comps_gene.sort_by(|v, w| v.len().cmp(&w.len()));
-        comps_gene.sort_by_key(|v| v.len());
-        println!("Done reducing to gene level groups");
-        // let mut gfile = File::create(file_list.gene_cluster_file).expect("could not create groups.txt");
-        // let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
-        dir_paths.clone().into_par_iter().for_each(|dname| {
-            let compo: Vec<&str> = dname.rsplit('/').collect();
-            let experiment_name = compo[0];
-            let mut prefix_path = prefix.clone();
-            prefix_path.push('/');
-            prefix_path.push_str(experiment_name);
-            let file_list_out = salmon_types::FileList::new(prefix_path);
-            let mut gfile =
-                File::create(file_list_out.gene_cluster_file).expect("could not create groups.txt");
-            let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
-        });
-    }
+    //     let mut genevec: Vec<u32> = vec![0u32; rec.len()];
+    //     let mut genevecpresent: Vec<bool> = vec![false; rec.len()];
+    //     let mut notfound = 0;
+    //     for i in 0..rec.len() {
+    //         let tname = rec[i].Name.clone();
+    //         // println!("Searching for {:?}", tname);
+    //         match t2gmap.get(&tname) {
+    //             Some(gname) => match genemap.get(gname) {
+    //                 Some(geneid) => {
+    //                     genevec[i] = *geneid;
+    //                     genevecpresent[i] = true;
+    //                 }
+    //                 None => {
+    //                     println!("Not found {:?}, {:?}", tname, gname);
+    //                 }
+    //             },
+    //             None => {
+    //                 //println!("transcript name not found {}", tname);
+    //                 notfound += 1;
+    //             }
+    //         }
+    //     }
+    //     if notfound > 0 {
+    //         println!("{} transcripts not in {:?}", notfound, transcript2gene);
+    //     }
+    //     let mut global_gene_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
+    //     if global_gene_graph.node_count() == 0 {
+    //         for i in 0..genenames.len() {
+    //             let idx = global_gene_graph.add_node(i as usize);
+    //             // the index assigned by the graph should be the
+    //             // order in which we add these
+    //             debug_assert_eq!(i as usize, idx.index());
+    //         }
+    //     }
+    //     println!("Initial graph constructed");
+    //     for edge in global_filtered_graph.raw_edges() {
+    //         let source = edge.source().index();
+    //         let end = edge.target().index();
+    //         if !(genevecpresent[source] && genevecpresent[end]) {
+    //             continue;
+    //         }
+    //         let na = genevec[source];
+    //         let nb = genevec[end];
+    //         let va = pg::graph::NodeIndex::new(na as usize);
+    //         let vb = pg::graph::NodeIndex::new(nb as usize);
+    //         let e = global_gene_graph.find_edge(va, vb);
+    //         match e {
+    //             Some(ei) => {
+    //                 let ew = global_gene_graph
+    //                     .edge_weight_mut(ei)
+    //                     .expect("edge weight not found");
+    //                 *ew += 1;
+    //             }
+    //             None => {
+    //                 global_gene_graph.add_edge(va, vb, 1);
+    //             }
+    //         }
+    //     }
+    //     // components
+    //     let mut comps_gene: Vec<Vec<_>> = tarjan_scc(&global_gene_graph);
+    //     // comps_gene.sort_by(|v, w| v.len().cmp(&w.len()));
+    //     comps_gene.sort_by_key(|v| v.len());
+    //     println!("Done reducing to gene level groups");
+    //     // let mut gfile = File::create(file_list.gene_cluster_file).expect("could not create groups.txt");
+    //     // let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
+    //     dir_paths.clone().into_par_iter().for_each(|dname| {
+    //         let compo: Vec<&str> = dname.rsplit('/').collect();
+    //         let experiment_name = compo[0];
+    //         let mut prefix_path = prefix.clone();
+    //         prefix_path.push('/');
+    //         prefix_path.push_str(experiment_name);
+    //         let file_list_out = salmon_types::FileList::new(prefix_path);
+    //         let mut gfile =
+    //             File::create(file_list_out.gene_cluster_file).expect("could not create groups.txt");
+    //         let _write = util::gene_writer(&mut gfile, &comps_gene, &genenames);
+    //     });
+    // }
 
     // // components
-    let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
-    comps.sort_by(|v, w| v.len().cmp(&w.len()));
-    comps.sort_by_key(|v| v.len());
+    // let mut comps: Vec<Vec<_>> = tarjan_scc(&global_filtered_graph);
+    // comps.sort_by(|v, w| v.len().cmp(&w.len()));
+    // comps.sort_by_key(|v| v.len());
     // // write a json file containing
     // // new number of nodes, number of components, etc
-    let mut total_in_group = 0;
-    let mut num_group = 0;
-    for (bipart_split, _) in bipart_counter.iter() {
-        total_in_group += bipart_split.split("_").collect::<Vec<&str>>().len() + 1; //+1 for bp
-        num_group += 1;
-    }
-    let term_info = salmon_types::TerminusInfo {
-        num_nontrivial_groups: num_group,
-        num_targets_in_nontrivial_group: total_in_group,
-    };
-    println!(
-        "total number of transcripts in a non-trivial group : {}",
-        total_in_group
-    );
-    println!("total consensus clusters : {}", num_group);
+    
     //let mut l = term_info;
     // // for each experiment call the writer
-    println!("=============Writing collapsed output=============");
-    dir_paths.into_par_iter().for_each(|dname| {
-        // getting prepared for output
-        let compo: Vec<&str> = dname.rsplit('/').collect();
-        let experiment_name = compo[0];
-        let mut prefix_path = prefix.clone();
-        prefix_path.push('/');
-        prefix_path.push_str(experiment_name);
-        let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
-        let file_list = salmon_types::FileList::new(dname.to_string());
-        // create output directory
-        println!("Sample {}", experiment_name);
+    // println!("=============Writing collapsed output=============");
+    // dir_paths.into_par_iter().for_each(|dname| {
+    //     // getting prepared for output
+    //     let compo: Vec<&str> = dname.rsplit('/').collect();
+    //     let experiment_name = compo[0];
+    //     let mut prefix_path = prefix.clone();
+    //     prefix_path.push('/');
+    //     prefix_path.push_str(experiment_name);
+    //     let file_list_out = salmon_types::FileList::new(prefix_path.to_string());
+    //     let file_list = salmon_types::FileList::new(dname.to_string());
+    //     // create output directory
+    //     println!("Sample {}", experiment_name);
 
-        let bpath = std::path::Path::new(&prefix_path);
-        let term_info_path = bpath.join("terminus_info.json");
-        let estr = format!("could not write terminus_info.json in {}", prefix_path);
-        ::serde_json::to_writer(&File::create(term_info_path).expect(&estr), &term_info)
-            .expect(&estr);
-        // load old files
-        // let x = util::parse_json(&file_list.mi_file).unwrap();
-        // copy cmd_info.json from old location to new
-        std::fs::copy(&file_list.cmd_file, &file_list_out.cmd_file)
-            .expect("Could not copy cmd_info.json.");
-        let x = util::parse_json(&file_list.mi_file).unwrap();
-        let rec = util::parse_quant(&file_list.quant_file, &x).unwrap();
-        let mut gibbs_array =
-            Array2::<f64>::zeros((x.num_valid_targets as usize, x.num_bootstraps as usize));
-        util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
+    //     let bpath = std::path::Path::new(&prefix_path);
+    //     let term_info_path = bpath.join("terminus_info.json");
+    //     let estr = format!("could not write terminus_info.json in {}", prefix_path);
+    //     ::serde_json::to_writer(&File::create(term_info_path).expect(&estr), &term_info)
+    //         .expect(&estr);
+    //     // load old files
+    //     // let x = util::parse_json(&file_list.mi_file).unwrap();
+    //     // copy cmd_info.json from old location to new
+    //     std::fs::copy(&file_list.cmd_file, &file_list_out.cmd_file)
+    //         .expect("Could not copy cmd_info.json.");
+    //     let x = util::parse_json(&file_list.mi_file).unwrap();
+    //     let rec = util::parse_quant(&file_list.quant_file, &x).unwrap();
+    //     let mut gibbs_array =
+    //         Array2::<f64>::zeros((x.num_valid_targets as usize, x.num_bootstraps as usize));
+    //     util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
         
-        let mut bipart_file = File::create(file_list_out.cluster_bp_splits_file.clone()).expect("could not create cluster bp splits");
-        let _f = util::mapTrait::bipart_writer(&bipart_counter, &mut bipart_file, &tnames);
-    // //     //call the writer
-        let _res =
-            util::write_quants_from_components(&comps, &file_list_out, &gibbs_array, &x, &rec);
-    });
+    //     let mut bipart_file = File::create(file_list_out.cluster_bp_splits_file.clone()).expect("could not create cluster bp splits");
+    //     let _f = util::mapTrait::bipart_writer(&bipart_counter, &mut bipart_file, &tnames);
+    // // //     //call the writer
+    //     let _res =
+    //         util::write_quants_from_components(&comps, &file_list_out, &gibbs_array, &x, &rec);
+    // });
     
     Ok(true)
 }
@@ -604,7 +609,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.45")
+        .version("0.1.46")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(
@@ -710,14 +715,14 @@ fn main() -> io::Result<()> {
                 .long("merge-groups")
                 .short("m")
                 .takes_value(true)
-                .default_value("false")
+                .default_value("true")
                 .help("Merge groups")
             )
             .arg(
                 Arg::with_name("merge_type")
                 .long("merge_type")
                 .takes_value(true)
-                .default_value("Phylip")
+                .default_value("phylip")
                 .help("Merging method")
             )
         ).get_matches();

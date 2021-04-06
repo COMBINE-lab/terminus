@@ -162,14 +162,16 @@ fn write_file(f:&mut File, st:String) -> Result<bool, io::Error> {
 
 fn get_cons(out:&String, samp_trees:&[String]) -> String {
     let dir = PathBuf::from(out);
-    let inp_nwk = dir.as_path().join("inp_nwk.txt");
+    let inp_nwk = dir.as_path().join("inp_tree.nwk");
+    
     let mut f_inp = File::create(inp_nwk).expect("could not create input newick file");
     for g in samp_trees.iter(){
         let _t=write_file(&mut f_inp, g.clone());
     }
+    
     let (code, output, error) = run_script::run_script!(
         r#"
-        ../consense < ../input
+        ./phylip_consensus/consense < phylip_consensus/input
          exit 0
          "#
     )
@@ -222,7 +224,19 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     let mut mg_file = File::create(file_list_out.merged_groups_file).expect("could not create merged group file");
     let mut clust_nwk_file = File::create(file_list_out.cons_nwk_file).expect("could not create cluster newick file");
     
-    
+    let inp_nwk_s = format!("{}/inp_tree.nwk",out.clone());
+    let (code, output, error) = run_script::run_script!(
+        
+        &format!("echo {}  >> phylip_consensus/input", inp_nwk_s)
+        
+    ).unwrap();
+    let (code, output, error) = run_script::run_script!(
+        r#"
+        echo "R Yes" >> phylip_consensus/input
+        echo "Y"  >> phylip_consensus/input
+         exit 0
+         "#
+    ).unwrap();
     for (merged_group, old_group) in mg {
         let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees);
         let _t = write_file(&mut mg_file, group_inf.0);

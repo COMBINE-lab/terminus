@@ -903,18 +903,19 @@ pub fn eq_experiment_to_graph(
 
         let _wsrounded: Vec<i32> = ws.iter().map(|&w| (w * 1000f32).round() as i32).collect();
         let mut pair_vec = Vec::with_capacity(ns.len());
+        
         for j in 0..ns.len() {
             pair_vec.push((ns[j], OrderedFloat(ws[j])));
             valid_transcripts[ns[j] as usize] = true;
         }
+        
         pair_vec.sort_by_key(|k| k.1);
-
-        //let mut partition_sets = Vec::new();
-
+        
         let mut j = 0_usize;
         let mut tmp_vec = Vec::with_capacity(ns.len());
 
         while j < pair_vec.len() - 1 {
+            
             let mut diff = pair_vec[j + 1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap();
             tmp_vec.clear();
             tmp_vec.push(pair_vec[j].0 as usize);
@@ -922,7 +923,7 @@ pub fn eq_experiment_to_graph(
 
             while diff < tolerance {
                 if asemode {
-                    // check if j and (j + 1) th transcript belong to the same vector or not
+                    // check if j and (j + 1) th transcript belong to the same vector or not        
                     let gene_a = genevec[pair_vec[j].0 as usize];
                     let gene_b = genevec[pair_vec[j + 1].0 as usize];
                     if gene_a != gene_b {
