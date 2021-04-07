@@ -37,6 +37,25 @@ How to use terminus
 
 Terminus has two sub-commands, `group` and `collapse`. For detailed tutorial and usage please visit the [tutorial](https://combine-lab.github.io/terminus-tutorial/2020/running-terminus/) or the [documentation](https://terminus.readthedocs.io/en/latest/).
 
+Updates
+-------
+`group` and `collapse` step are now updated where `group` creates a tree for each group and `collapse` creates either a consensus tree directly or the input that could be fed to a consenus tree algorithm. Under `collapse` there are additional sub-arguments - `m` which tells whether the overlapping groups across samples are to be merged (deafult true) and `merge_type` (default phylip) indicates the type of consensus method - majority consensus or the majority rule extended method. For more details for these refer to [this](https://evolution.genetics.washington.edu/phylip/doc/consense.html)
+
+The majority consensus is supported by biopy package in python2. Our approach would produce the file ```cluster_bipart_splits.txt``` which would be used as input for biopy. This is obtained by using `BP` as the argument to the `merge_type` parameter. The majority rule extended method is being computed via phylip and the collapse step would also yield the final consensus tree in `cluster_nwk.txt`. A limitation with running phylip option is that currently it is only implemented for the flag `true` for the parameter `m` unlike `BP` which is independent of it.
+
+An example of code snippet
+```
+$target/release/terminus collapse -c 0  -d data/Salmon_shuffled/Sample1 data/Salmon_shuffled/Sample2 data/Salmon_shuffled/Sample3 data/Salmon_shuffled/Sample4 data/Salmon_shuffled/Sample5 data/Salmon_shuffled/Sample6 -o data/term -m true --merge_type phylip
+```
+
+Things in the process
+<ol>
+  <li> Building majority rule consensus tree using Phylip. </li>
+  <li> Support in phylip which can take both merged and not merged groups as inputs. </li>
+  <li> Replacing the index names in the trees with the actual transcript names for Phylip.</li>
+  <li> Calling the C function for consensus directly from rust. The current process involves calling phylip consensus algorithm via bash script which invovles a lot of IOs that makes the process slow.</li>
+</ol>
+
 Authors
 -------
 
