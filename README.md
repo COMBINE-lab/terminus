@@ -53,7 +53,7 @@ Things in the process
   <li> Building majority rule consensus tree using Phylip. </li>
   <li> Support in phylip which can take both merged and not merged groups as inputs. </li>
   <li> Replacing the index names in the trees with the actual transcript names for Phylip.</li>
-  <li> Calling the C function for consensus directly from rust. The current process involves calling phylip consensus algorithm via bash script which invovles a lot of IOs that makes the process slow.</li>
+  <li> Calling the C function for consensus directly from rust. The current process involves calling phylip consensus algorithm passing an input file for group containing all trees which invovles a lot of IOs that makes the process slow.</li>
 </ol>
 
 Authors
