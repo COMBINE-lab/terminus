@@ -244,6 +244,7 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
         for (_i, g) in group_inf.1.iter().enumerate(){
             let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
         }
+        println!("{:?}", group_inf.1);
         println!("{}", get_cons(out, &group_inf.1));
         let _t = write_file(&mut clust_nwk_file, get_cons(out, &group_inf.1));
     }
