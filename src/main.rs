@@ -145,16 +145,16 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         println!("{} genes exist in the file", genenames.len());
 
         let mut genevecpresent: Vec<bool> = vec![false; x.num_valid_targets as usize];
-        let mut notfound = 0;
-        
+        let mut notfound = 0;    
         // fill targets from eq_class
         let tnames = eq_class.targets.clone();
-        
+        println!("tr {}", tnames[0]);
+        println!("{:?}", t2gmap.keys());
         
         let mut global_id = 0u32;
         for i in 0..tnames.len() {
             let tname = tnames[i].clone();
-            
+            //println!("{}", tname);
             // The names are as
             // following
             // FBtr0112790_M|16647882_2_FBgn0000017_16631403
@@ -334,6 +334,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut tnames:Vec<String> = Vec::new();
     // add edges
     for (i, dname) in dir_paths.iter().enumerate() {
+        println!("d name {}", dname);
         //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
         let mut dir_bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
         //let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
@@ -609,7 +610,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.46")
+        .version("0.1.47")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(

@@ -240,11 +240,11 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     for (merged_group, old_group) in mg {
         let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees);
         let _t = write_file(&mut mg_file, group_inf.0);
-        println!("Computing cluster for group {}", merged_group.clone());
+        //println!("Computing cluster for group {}", merged_group.clone());
         for (_i, g) in group_inf.1.iter().enumerate(){
             let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
         }
-        
+        println!("{}", get_cons(out, &group_inf.1));
         let _t = write_file(&mut clust_nwk_file, get_cons(out, &group_inf.1));
     }
     
