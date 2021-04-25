@@ -168,7 +168,7 @@ fn get_cons(out:&String, samp_trees:&[String]) -> String {
     for g in samp_trees.iter(){
         let _t=write_file(&mut f_inp, g.clone());
     }
-    
+    println!("{:?}", samp_trees);
     let (code, output, error) = run_script::run_script!(
         r#"
         ./phylip_consensus/consense < phylip_consensus/input
@@ -178,9 +178,11 @@ fn get_cons(out:&String, samp_trees:&[String]) -> String {
     .unwrap();
     let cons_nwk = read_to_string("outtree")
         .expect("Something went wrong reading the file");
+    println!("{}", cons_nwk);
     let (code, output, error) = run_script::run_script!(
         r#"
         rm out*
+        
             exit 0
             "#
     ).unwrap();
@@ -227,7 +229,7 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     let inp_nwk_s = format!("{}/inp_tree.nwk",out.clone());
     let (code, output, error) = run_script::run_script!(
         
-        &format!("echo {}  >> phylip_consensus/input", inp_nwk_s)
+        &format!("echo {}  > phylip_consensus/input", inp_nwk_s)
         
     ).unwrap();
     let (code, output, error) = run_script::run_script!(
@@ -240,13 +242,18 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     for (merged_group, old_group) in mg {
         let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees);
         let _t = write_file(&mut mg_file, group_inf.0);
-        //println!("Computing cluster for group {}", merged_group.clone());
+        println!("Computing cluster for group {}", merged_group.clone());
         for (_i, g) in group_inf.1.iter().enumerate(){
             let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
         }
-        println!("{:?}", group_inf.1);
-        println!("{}", get_cons(out, &group_inf.1));
+        //println!("{:?}", group_inf.1);
+        //println!("{}", get_cons(out, &group_inf.1));
         let _t = write_file(&mut clust_nwk_file, get_cons(out, &group_inf.1));
     }
-    
+    let (code, output, error) = run_script::run_script!(
+        r#"
+        rm phylip_consensus/input
+            exit 0
+            "#
+    ).unwrap();
 }
