@@ -610,7 +610,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.49")
+        .version("0.1.50")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(

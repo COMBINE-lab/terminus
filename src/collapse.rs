@@ -122,6 +122,7 @@ fn get_group_trees(merged_group:&String, groups:&[String], samp_group_trees:&[Ha
             1 => s_trees[0].clone(),
             _ => format!("({}",s_trees.join(",")),
         };
+        
         // let mut cur_nwk_trees = "".to_string();
         // if length(s_trees) <= 1 {
         //     cur_nwk_trees.insert_str(0, "(");
@@ -132,20 +133,28 @@ fn get_group_trees(merged_group:&String, groups:&[String], samp_group_trees:&[Ha
         // let mut cur_nwk_trees = format!("({}",s_trees.join(","));
         let diff = comp_diff(&merged_group, &g_vec);
         if diff.len() > 0 {
-            if(l == 1) {
+            if l == 1 {
                 cur_nwk_trees.insert_str(0,"(");
             }
-            for v in diff.iter() {
-                cur_nwk_trees.push_str(&format!(",{}", v.to_string()));
+            if l > 0 {
+                for v in diff.iter() {
+                    cur_nwk_trees.push_str(&format!(",{}", v.to_string()));
+                }
+            }
+            else {
+                cur_nwk_trees.push_str(&format!("{}", diff[0].clone().to_string()));
+                for v in diff.iter().skip(1) {
+                    cur_nwk_trees.push_str(&format!(",{}", v.to_string()));
+                }
             }    
         }
+        
         if l!=1 || diff.len() > 0 {
             cur_nwk_trees.push_str(");");
         }
         else {
             cur_nwk_trees.push_str(";");
         }
-
         samp_nwk.push(cur_nwk_trees.clone());
         let gs = g_vec.join(",");
         g_inf.push_str(&format!("\t{}\t{}", _i.to_string(), gs));
