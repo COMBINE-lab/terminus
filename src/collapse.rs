@@ -33,9 +33,9 @@ fn create_union_find(g:&[String], ntxps:usize) -> UnionFind<usize> {
             }
         }
     }
-    if count != ntxps {
-        panic!("The number of expected transcripts {} do not match the counted transcripts from the groups{}", ntxps, count);
-    }
+    // if count != ntxps {
+    //     panic!("The number of expected transcripts {} do not match the counted transcripts from the groups{}", ntxps, count);
+    // }
     return unionfind_struct;
 }
 
