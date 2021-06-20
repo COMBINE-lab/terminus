@@ -107,12 +107,25 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     util::read_gibbs_array(&file_list.bootstrap_file, &x, &mut gibbs_array);
     let mut gibbs_mat_mean = gibbs_array.mean_axis(Axis(1)).unwrap();
 
-    // if t2g exists also dumps gene level groups
-    let transcript2gene = PathBuf::from(sub_m.value_of("tg").unwrap().to_string());
-    println!(
-        "transcript2gene file: {:?}",
-        transcript2gene.to_str().unwrap()
-    );
+    // if a2g exists also dumps gene level groups
+    let mut allele2txp = PathBuf::from(sub_m.value_of("a2t").unwrap().to_string());
+    let asemode:bool = allele2txp.as_path().is_file();
+    if asemode {
+        println!("Alleles would be collapsed according to the file: {:?}",allele2txp.to_str().unwrap());
+    }
+    else {
+        println!("No allele collapsing as no/wrong input file provided {}", allele2txp.to_str().unwrap());
+    }
+
+    // if t2g exists restrict equivalence classes to gene level groups
+    let mut transcript2gene = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
+    let txpmode:bool = transcript2gene.as_path().is_file();
+    if txpmode {
+        println!("Only txps within a gene would be collapsed using : {:?}", transcript2gene.to_str().unwrap());
+    }
+    else {
+        println!("No within gene restriction for txp collapse as no/wrong input file provided {}", transcript2gene.to_str().unwrap());
+    }
 
     // take the transcript to gene mapping
     // this will also create a map from transcript id
@@ -130,7 +143,27 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for i in 0..eq_class.ntarget {
         collapse_order.push(binary_tree::TreeNode::create_leaf(i.to_string()));
     }
+
+    // fill targets from eq_class
+    let mut tnames:HashMap<String, usize> = HashMap::new();
+    for i in 0..eq_class.ntarget {
+        tnames.insert(eq_class.targets[i].clone(), i);
+    }
+    let ntarget = eq_class.ntarget;
+
+    let mut gene2allele_map:HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut allele2gene_map:Vec<usize> = Vec::new();
+
+    let mut txp2allele_map:HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut allele2txp_map:Vec<usize> = Vec::new();
     
+    if asemode {
+        util::get_map_bw_ent(&mut allele2txp, &mut txp2allele_map, &mut allele2txp_map, &tnames);
+        let nalleles = allele2txp_map.len();
+        if nalleles != ntarget {
+            panic!("number of alleles {} not equal to number of txps in eq class file {}", nalleles, ntarget);
+        }
+    }
     let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
     // let mut allele_name_map : HashMap<String, String> = HashMap::new();
     let mut allele_vec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
@@ -176,33 +209,24 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
                 }
             }
 
-            // allele_name_map.insert(tname.clone(), splitted_names[0].to_string());
-            
-            match t2gmap.get(&tname) {
-                Some(gname) => match genemap.get(gname) {
-                    Some(geneid) => {
-                        genevec[i] = *geneid;
-                        genevecpresent[i] = true;
-                    }
-                    None => {
-                        println!("Not found {:?}, {:?}", tname, gname);
-                    }
-                },
-                None => {
-                    println!("transcript name not found {}", tname);
-                    notfound += 1;
-                }
+    if txpmode {
+        util::get_map_bw_ent(&mut transcript2gene, &mut gene2allele_map, &mut allele2gene_map, &tnames);    
+        let ntxps = allele2gene_map.len();
+        if ntxps != ntarget {
+            panic!("number of txps {} not equal to number of txps in eq class file {}", ntxps, ntarget);
+        }
+    }
+
+    if asemode {
+        let nalleles = allele2txp_map.len();
+        if txpmode {
+            let ntxps = allele2gene_map.len();
+            if nalleles != ntxps {
+                panic!("number of alleles {} not equal to number of txps in eq class file {}", nalleles, ntxps);
             }
         }
-        //println!("{:?}",genevec);
-        //println!("{:?}",allele_map);
-        if notfound > 0 {
-            println!("{} transcripts not in {:?}", notfound, transcript2gene);
-        }
-        true
-    } else {
-        false
-    };
+    }    
+        
 
     let inf_perc = 0.25f64;
     let p = util::get_infrv_percentile(&gibbs_array, inf_perc);
@@ -221,8 +245,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for i in 0..eq_class.ntarget {
         group_order.push(i.to_string())
     }
-    // println!("{:?}",asemode);
-    // println!("{:?}",original_id_to_old_id_map);
+ 
     // pass the gene to transcript mapping to the building graph phase to
     // restrict the creation of two edge between nodes from the same gene
     let mut gr = util::eq_experiment_to_graph(
@@ -235,9 +258,8 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         min_spread,
         &mut dfile,
         &mut unionfind_struct,
-        &genevec,
-        &original_id_to_old_id_map,
-        asemode,
+        &allele2gene_map,
+        &txp2allele_map,
         &mut group_order,
         &mut collapse_order
     );
@@ -610,7 +632,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.51")
+        .version("0.1.52")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(
@@ -650,11 +672,18 @@ fn main() -> io::Result<()> {
                           in same equivalence classes to treat them as identical")
             )
             .arg(
-                Arg::with_name("tg")
-                    .long("tg")
+                Arg::with_name("a2t")
+                    .long("a2t")
                     .takes_value(true)
                     .default_value("")
-                    .help("use this to prohibit edges across genes")
+                    .help("Mapping allele to transcript")
+            )
+            .arg(
+                Arg::with_name("t2g")
+                    .long("t2g")
+                    .takes_value(true)
+                    .default_value("")
+                    .help("Mapping transcript to gene")
             )
             .arg(
                 Arg::with_name("out")

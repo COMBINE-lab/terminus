@@ -483,6 +483,50 @@ pub fn get_ambig(filename: &std::path::Path) -> Vec<u32> {
     only_ambig
 }
 
+/// Given a file mapping entities in txps/alleles to gene/txp which is the base unit of quantification, creates 
+/// for each txp/allele referred (as ent1) its corresponding gene/txp (referred as ent2) and for each ent2 its corresponding ent1 indexes
+/// # Arguments
+/// *`filename` - A reference to path containing the ent1 to ent2 mapping
+/// *`ent2_ent1map` - A mutable reference to hashmap that would store for each ent2 - corresponding ent1 indexes
+/// *`ent1_ent2map` - A mutable reference to vector that would store for each ent1 - its corresponding ent2 index
+/// *`tnames` - Txp/Allele (aka ent1) names that are present in eq_class file
+pub fn get_map_bw_ent(filename: &std::path::Path,
+    ent2_ent1map: &mut HashMap<usize, Vec<usize>>,
+    ent1_ent2map: &mut Vec<usize>,
+    tnames: &HashMap<String, usize>) {
+        let file = File::open(filename).expect("File could not be opened");
+        let buf_reader = BufReader::new(file);
+        let mut ent2_map = HashMap::<String, usize>::new();
+        *ent1_ent2map = vec![0;tnames.len()];
+        let mut j = 0;
+        for (_i, l) in buf_reader.lines().enumerate() {
+            let s = l.expect("Can't read line");
+            let mut iter = s.split_ascii_whitespace();
+            let ent1:String = iter.next().expect("Txp/Allele name").to_string();
+            let ent2:String = iter.next().expect("Gene/Txp name").to_string();
+            assert!(!ent1.is_empty(), "Allele/transcript name is empty");
+            assert!(!ent2.is_empty(), "txp/gene name is empty");
+            
+            let index = tnames.get(&ent1);
+            if(index.is_none()) {
+                panic!("Eq class file txps does not contain {}", ent1);
+            }
+            let index:usize = *index.unwrap();
+            
+            let ent2_ind = ent2_map.get(&ent2);
+            if !ent2_map.contains_key(&ent2) {
+                ent2_map.insert(ent2.clone(), j);
+                j += 1;
+            }
+            
+            let ent2_ind = *ent2_map.get(&ent2).unwrap();
+            let val = ent2_ent1map.entry(ent2_ind).or_insert_with(Vec::new);
+            ent1_ent2map[index] = ent2_ind;
+            val.push(index);
+        }
+}
+
+
 #[allow(dead_code)]
 pub fn get_t2g(
     filename: &std::path::Path,
@@ -814,71 +858,17 @@ pub fn eq_experiment_to_graph(
     min_spread: f64,
     delta_file: &mut File,
     unionfind_struct: &mut UnionFind<usize>,
-    genevec: &[u32],
-    original_id_to_old_id_map: &HashMap<u32, Vec<u32>>,
-    asemode: bool,
+    genevec: &[usize],
+    original_id_to_old_id_map: &HashMap<usize, Vec<usize>>,
     group_order: &mut [String],
     collapse_order: &mut [TreeNode]
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
 
-    // create a hash of eqclasses
-    /*
-    println!("Creating hash table for eqclasses");
-    let mut trinfo_list = vec![TranscriptInfo::new(); exp.targets.len()];
-    let mut golden_set = vec![Vec::<u32>::new(); exp.targets.len()];
-    let mut trinfo_map : HashMap<TranscriptInfo, usize> = HashMap::new();
-    for (i,x) in exp.classes.iter().enumerate() {
-        if i % 10000 == 1 {
-            print!("{}\r",i);
-            io::stdout().flush().unwrap();
-        }
-        let ns = x.0;
-        let ws = x.1;
+    let txpmode:bool = genevec.len() > 0;
+    let asemode:bool = original_id_to_old_id_map.len() > 0;
 
-        let wsrounded : Vec<i32> = ws.iter().map(|&w| (w * 1000f32).round() as i32).collect();
-        for j in 0..ns.len(){
-            let a = ns[j];
-            let w = wsrounded[j];
-            trinfo_list[a as usize].eqlist.push(i);
-            trinfo_list[a as usize].weights.push(w);
-        }
-    }
-    // insert into the hash
-    let mut golden_set_index = 0 as usize ;
-    for (i,tinfo) in trinfo_list.iter().enumerate(){
-        if i == 107880 || i == 241729{
-            println!("{:?}", tinfo);
-        }
-        if tinfo.eqlist.len() == 0 { continue; }
-        match trinfo_map.get(&tinfo) {
-            Some(&stored_tinfo_index) => {
-                golden_set[stored_tinfo_index].push(i as u32);
-            },
-            None => {
-                trinfo_map.insert(tinfo.clone(),golden_set_index);
-                golden_set[golden_set_index].push(i as u32);
-                golden_set_index += 1;
-            }
-        }
-    }
-
-    for (_,tlist_bk) in golden_set.iter().enumerate(){
-        let mut tlist = tlist_bk.clone();
-        tlist.sort();
-        if tlist.len() > 1{
-            let source = tlist[0];
-            for t in tlist.iter().skip(1){
-                let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
-                let mut s = gibbs_mat.slice_mut(s![source as usize,..]);
-                s += &to_add;
-                unionfind_struct.union(source as usize, *t as usize);
-            }
-        }
-    }
-    */
-
-    // code for refinery
+    println!("txp mode and ase mode {},{}", asemode, txpmode);
     println!("Creating partition refinery");
     let mut part_cache = HashSet::new();
     let part_start = Instant::now();
@@ -896,10 +886,6 @@ pub fn eq_experiment_to_graph(
             part.refine(&[ns[0] as usize]);
             continue;
         }
-
-        //let thresh = 0.1 * (1.0 / ns.len() as f32);
-        //let retained : std::vec::Vec<usize> = (0..ns.len()).filter_map(
-        //    |j| if ws[j as usize] >= thresh { Some(j as usize) } else { None} ).collect();
 
         let _wsrounded: Vec<i32> = ws.iter().map(|&w| (w * 1000f32).round() as i32).collect();
         let mut pair_vec = Vec::with_capacity(ns.len());
@@ -922,7 +908,7 @@ pub fn eq_experiment_to_graph(
             // if asemode is on then check for that
 
             while diff < tolerance {
-                if asemode {
+                if txpmode { // restriction to gene
                     // check if j and (j + 1) th transcript belong to the same vector or not        
                     let gene_a = genevec[pair_vec[j].0 as usize];
                     let gene_b = genevec[pair_vec[j + 1].0 as usize];
@@ -1122,7 +1108,7 @@ pub fn eq_experiment_to_graph(
             for nb in retained.iter().skip(a + 1) {
                 let mut nbd = *nb as usize;
 
-                if asemode {
+                if txpmode {
                     let gene_a = genevec[na];
                     let gene_b = genevec[nbd];
                     if gene_a != gene_b {
@@ -1186,7 +1172,6 @@ pub fn eq_experiment_to_graph(
                 } // if not filtered and count big enough
             }
         }
-        //println!("{:?} :: {:?} :: [{:?}]", x.0, x.1, x.2);
     }
 
     let og2 = og.filter_map(
