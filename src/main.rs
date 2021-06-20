@@ -164,50 +164,6 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             panic!("number of alleles {} not equal to number of txps in eq class file {}", nalleles, ntarget);
         }
     }
-    let mut genevec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
-    // let mut allele_name_map : HashMap<String, String> = HashMap::new();
-    let mut allele_vec: Vec<u32> = vec![0u32; x.num_valid_targets as usize];
-    let mut allele_map: HashMap<String, u32> = HashMap::new();
-    let mut original_id_to_old_id_map: HashMap<u32, Vec<u32>> = HashMap::new();
-    // let mut asemode: bool = false;
-    
-    let asemode = if transcript2gene.as_path().is_file() {
-        let mut t2gmap: HashMap<String, String> = HashMap::new();
-        let mut genemap: HashMap<String, u32> = HashMap::new();
-        let genenames = util::get_t2g(&transcript2gene, &mut genemap, &mut t2gmap);
-        println!("{} genes exist in the file", genenames.len());
-
-        let mut genevecpresent: Vec<bool> = vec![false; x.num_valid_targets as usize];
-        let mut notfound = 0;    
-        // fill targets from eq_class
-        let tnames = eq_class.targets.clone();
-        println!("tr {}", tnames[0]);
-        println!("{:?}", t2gmap.keys());
-        
-        let mut global_id = 0u32;
-        for i in 0..tnames.len() {
-            let tname = tnames[i].clone();
-            //println!("{}", tname);
-            // The names are as
-            // following
-            // FBtr0112790_M|16647882_2_FBgn0000017_16631403
-            // We create a mapping FBtr0112790_M -> FBtr0112790
-            let splitted_names: Vec<&str> = tname.split('|').collect();
-            let original_name = splitted_names[0].to_string().split("_").collect::<Vec<&str>>()[0].to_string();
-            match allele_map.get(&original_name) {
-                Some(original_id) => {
-                    allele_vec[i] = *original_id;
-                    if let Some(txp_id_vec) = original_id_to_old_id_map.get_mut(original_id) {
-                        txp_id_vec.push(i as u32);
-                    }
-                }
-                None => {
-                    allele_map.insert(original_name.clone(), global_id);
-                    original_id_to_old_id_map.insert(global_id, vec![i as u32]);
-                    allele_vec[i] = global_id;
-                    global_id += 1;
-                }
-            }
 
     if txpmode {
         util::get_map_bw_ent(&mut transcript2gene, &mut gene2allele_map, &mut allele2gene_map, &tnames);    
@@ -356,7 +312,6 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut tnames:Vec<String> = Vec::new();
     // add edges
     for (i, dname) in dir_paths.iter().enumerate() {
-        println!("d name {}", dname);
         //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
         let mut dir_bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
         //let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
@@ -632,7 +587,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.52")
+        .version("0.1.46")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(
