@@ -77,6 +77,12 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .unwrap()
         .parse::<f64>()
         .expect("could not convert tolerance to float value");
+    
+    let thr_bool = sub_m
+        .value_of("thresh")
+        .unwrap()
+        .parse::<bool>()
+        .expect("could not parse thr_bool");
 
     println!("------input configuration------");
     println!("seed : {}", seed);
@@ -113,18 +119,12 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     if asemode {
         println!("Alleles would be collapsed according to the file: {:?}",allele2txp.to_str().unwrap());
     }
-    else {
-        println!("No allele collapsing as no/wrong input file provided {}", allele2txp.to_str().unwrap());
-    }
 
     // if t2g exists restrict equivalence classes to gene level groups
     let mut transcript2gene = PathBuf::from(sub_m.value_of("t2g").unwrap().to_string());
     let txpmode:bool = transcript2gene.as_path().is_file();
     if txpmode {
-        println!("Only txps within a gene would be collapsed using : {:?}", transcript2gene.to_str().unwrap());
-    }
-    else {
-        println!("No within gene restriction for txp collapse as no/wrong input file provided {}", transcript2gene.to_str().unwrap());
+        println!("Txps within a gene would be collapsed using : {:?}", transcript2gene.to_str().unwrap());
     }
 
     // take the transcript to gene mapping
@@ -188,7 +188,11 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let p = util::get_infrv_percentile(&gibbs_array, inf_perc);
     //let p = 2.48675518f64;
     println!("the {}% of infRV was : {}", inf_perc * 100., p);
-    let thr = util::get_threhold(&gibbs_array, p, seed, &file_list_out);
+    let mut thr = 1e7 as f64;
+    if thr_bool {
+        thr = util::get_threhold(&gibbs_array, p, seed, &file_list_out);
+    }
+    
    // let thr = -12.958284980475035f64;
     // thr = thr * 0.75;
     // thr = 0.645;
@@ -639,6 +643,13 @@ fn main() -> io::Result<()> {
                     .takes_value(true)
                     .default_value("")
                     .help("Mapping transcript to gene")
+            )
+            .arg(
+                Arg::with_name("thresh")
+                    .long("thr")
+                    .takes_value(true)
+                    .default_value("true")
+                    .help("do we use a threshold for collapsing")
             )
             .arg(
                 Arg::with_name("out")
