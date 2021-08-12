@@ -304,9 +304,22 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .build_global()
         .unwrap_or_else(|_| panic!("could not set number of rayon threads to {}", num_threads));
 
-    let dir_paths: Vec<&str> = sub_m.values_of("dirs").unwrap().collect();
+    //let dir_paths: Vec<&str> = sub_m.values_of("dirs").unwrap().collect();
+    let sal_dir: String = sub_m.value_of("dirs").unwrap().to_string();
+    let md = metadata(sal_dir.clone()).unwrap_or_else(|_| panic!("Invalid directory {}", sal_dir));
+    
+    let mut sal_dir_paths = read_dir(sal_dir)?
+        .map(|res| res.map(|e| e.path()))
+        .filter(|res| res.as_ref().unwrap().is_dir())
+        .collect::<Result<Vec<_>, io::Error>>()?;
+    
+    let mut dir_paths: Vec<&str> = Vec::new();
+    for entry in sal_dir_paths.iter() {
+        dir_paths.push(entry.as_path().to_str().unwrap());
+    }
     let prefix: String = sub_m.value_of("out").unwrap().to_string();
 
+    
     //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
     let mut bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new();
     let mut global_graph = pg::Graph::<usize, u32, petgraph::Undirected>::new_undirected();
@@ -316,12 +329,18 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let mut tnames:Vec<String> = Vec::new();
     // add edges
     for (i, dname) in dir_paths.iter().enumerate() {
+        //let dname = dname.as_path().to_str().unwrap();
+        let compo: Vec<&str> = dname.rsplit('/').collect();
+        if compo[0].chars().next().unwrap() == '.' {
+            continue;
+        }
+        let experiment_name = compo[0];
+        println!("experiment name {}", experiment_name);
+        
         //let mut bipart_counter: HashMap<String, u32> = HashMap::new();
         let mut dir_bipart_counter: HashMap<String, HashMap<String, u32>> = HashMap::new(); // Storing counts of each bipartition
         //let mut group_bipart: HashMap<String, Vec<String>> = HashMap::new(); // Storing all bipartitions per group
-        let compo: Vec<&str> = dname.rsplit('/').collect();
-        let experiment_name = compo[0];
-        println!("experiment name {}", experiment_name);
+        
         let mut prefix_path = prefix.clone();
         prefix_path.push('/');
         prefix_path.push_str(experiment_name);
@@ -591,7 +610,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 fn main() -> io::Result<()> {
     let matches = App::new("Terminus")
 	.setting(AppSettings::ArgRequiredElseHelp)
-        .version("0.1.52")
+        .version("0.1.53")
         .author("Sarkar et al.")
         .about("Data-driven grouping of transcripts to reduce inferential uncertainty")
         .subcommand(
@@ -669,7 +688,7 @@ fn main() -> io::Result<()> {
                     .long("dirs")
                     .short("d")
                     .required(true)
-                    .multiple(true)
+               //     .multiple(true)
                     .takes_value(true)
                     .help("direcotories to read the group files from")
             )
