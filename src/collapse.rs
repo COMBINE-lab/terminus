@@ -211,8 +211,8 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     println!("Length of groups after merging {}", mg.len());
     
     println!("Reading group trees");
-    let mut samp_group_trees:Vec<HashMap<String,TreeNode>> = Vec::new();
-    let mut msamp_nwk_file:Vec<File> = Vec::new();
+    let mut samp_group_trees:Vec<HashMap<String,TreeNode>> = Vec::new(); //Vector containing group trees from each sample
+    let mut msamp_nwk_file:Vec<File> = Vec::new(); //Vector containing newick trees corresponding to each group
     // Storing group trees in each sample in an array along with ....
     for (i, dname) in dir_paths.iter().enumerate() {
         let compo: Vec<&str> = dname.rsplit('/').collect();
@@ -228,7 +228,7 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     
         let mut deserializer = serde_json::Deserializer::from_reader(reader);
         deserializer.disable_recursion_limit();
-        samp_group_trees.push(HashMap::deserialize(&mut deserializer).unwrap());
+        samp_group_trees.push(HashMap::deserialize(&mut deserializer).unwrap()); //Pushing hashmap containing trees corresponding to each group
     }
     println!("Finished reading group trees");
     let file_list_out = ConsensusFileList::new(out.clone());
@@ -249,7 +249,7 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
          "#
     ).unwrap();
     for (merged_group, old_group) in mg {
-        let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees);
+        let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees); // 
         let _t = write_file(&mut mg_file, group_inf.0);
         println!("Computing cluster for group {}", merged_group.clone());
         for (_i, g) in group_inf.1.iter().enumerate(){
