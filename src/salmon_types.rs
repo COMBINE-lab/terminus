@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct ConsensusFileList {
+    pub old_group_file: PathBuf,
     pub cons_nwk_file: PathBuf,
     pub cluster_bp_splits_file: PathBuf,
     pub merged_groups_file: PathBuf,
@@ -28,6 +29,7 @@ impl ConsensusFileList {
             cluster_bp_splits_file: dir.as_path().join("cluster_bipart_splits.txt"),
             cons_nwk_file: dir.as_path().join("cluster_nwk.txt"),
             merged_groups_file: dir.as_path().join("merged_groups_length.txt"),
+            old_group_file:dir.as_path().join("old_group_file.txt")
       //      groups_length: dir.as_path().join("groups_length.txt")
         }
     }

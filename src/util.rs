@@ -1035,7 +1035,7 @@ pub fn eq_experiment_to_graph(
     let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
     let gibbs_mat_spread = spread(&gibbs_mat, Axis(1));
 
-    // apply threashold
+    // apply threshold
     let filtered_indices_spread: Vec<u32> = gibbs_mat_spread
         .indexed_iter()
         .filter_map(|(index, &item)| {
@@ -1086,7 +1086,6 @@ pub fn eq_experiment_to_graph(
         assert!(eq_count == eq_class_count[i]);
 
         let thresh = 0.1 * (1.0 / ns.len() as f32);
-
         let retained: std::vec::Vec<usize> = (0..ns.len())
             .filter_map(|j| {
                 if ws[j as usize] >= thresh {
@@ -1096,7 +1095,7 @@ pub fn eq_experiment_to_graph(
                 }
             })
             .collect();
-
+            
         for a in 0..retained.len() {
             let mut na = retained[a] as usize;
             let na_root = unionfind_struct.find(na);
@@ -1104,7 +1103,7 @@ pub fn eq_experiment_to_graph(
             if na_root != na {
                 na = na_root;
             }
-
+           
             for nb in retained.iter().skip(a + 1) {
                 let mut nbd = *nb as usize;
 
@@ -1131,7 +1130,6 @@ pub fn eq_experiment_to_graph(
                 //  (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[*nb])
                 {
                     let (u, v) = if na < nbd { (na, nbd) } else { (nbd, na) };
-
                     let va = pg::graph::NodeIndex::new(u);
                     let vb = pg::graph::NodeIndex::new(v);
                     let e = og.find_edge(va, vb);

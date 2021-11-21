@@ -206,8 +206,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         group_order.push(i.to_string())
     }
  
-    // pass the gene to transcript mapping to the building graph phase to
-    // restrict the creation of two edge between nodes from the same gene
+   
     let mut gr = util::eq_experiment_to_graph(
         &eq_class,
         &mut gibbs_array,
@@ -408,7 +407,7 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         }
         else if m_type == "phylip"{
             let all_groups:Vec<String> = bipart_counter.keys().cloned().collect();
-            collapse::use_phylip(&dir_paths, &prefix, &all_groups, ntxps);
+            collapse::use_phylip(&dir_paths, &prefix, &all_groups, ntxps, &m_type);
         }
     }
     

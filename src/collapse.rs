@@ -198,7 +198,7 @@ fn get_cons(out:&String, samp_trees:&[String]) -> String {
     cons_nwk
 }
 
-pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:usize) {
+pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:usize, mtype:&str) {
     let g_union = create_union_find(&all_groups, ntxps as usize);
     let mut groups = HashMap::new();
     for i in 0..ntxps {
@@ -234,27 +234,43 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     let file_list_out = ConsensusFileList::new(out.clone());
     let mut mg_file = File::create(file_list_out.merged_groups_file).expect("could not create merged group file");
     let mut clust_nwk_file = File::create(file_list_out.cons_nwk_file).expect("could not create cluster newick file");
+    let mut old_group_file = File::create(file_list_out.old_group_file).expect("could not create cluster newick file");
     
-    let inp_nwk_s = format!("{}/inp_tree.nwk",out.clone());
-    let (code, output, error) = run_script::run_script!(
-        
-        &format!("echo {}  > phylip_consensus/input", inp_nwk_s)
-        
-    ).unwrap();
-    let (code, output, error) = run_script::run_script!(
-        r#"
-        echo "R Yes" >> phylip_consensus/input
-        echo "Y"  >> phylip_consensus/input
-         exit 0
-         "#
-    ).unwrap();
+    if mtype=="phylip" {
+        let inp_nwk_s = format!("{}/inp_tree.nwk",out.clone());
+        let (code, output, error) = run_script::run_script!(
+            
+            &format!("echo {}  > phylip_consensus/input", inp_nwk_s)
+            
+        ).unwrap();
+        let (code, output, error) = run_script::run_script!(
+            r#"
+            echo "R Yes" >> phylip_consensus/input
+            echo "Y"  >> phylip_consensus/input
+            exit 0
+            "#
+        ).unwrap();
+    }
     for (merged_group, old_group) in mg {
+        let mut m_group = merged_group.clone();
+        m_group.insert_str(0, ">Group ");
+        let _t = write_file(&mut old_group_file, m_group.clone()); //Writing 
+        //Filler code for the old group writing- can be interlaced wtih get_group_tree
+        for (_i,samp_hash) in samp_group_trees.iter().enumerate() {
+            for (_j,g) in old_group.iter().enumerate() {
+                if samp_hash.contains_key(g){
+                    let nwk_tree:String=get_binary_rooted_newick_string(samp_group_trees[_i].get(g).unwrap()); //individual tree
+                    let _t = write_file(&mut old_group_file, nwk_tree);
+                }
+            }
+        }
+
         let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees); // 
         let _t = write_file(&mut mg_file, group_inf.0);
         println!("Computing cluster for group {}", merged_group.clone());
-        for (_i, g) in group_inf.1.iter().enumerate(){
-            let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
-        }
+        // for (_i, g) in group_inf.1.iter().enumerate(){
+        //     let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
+        // }
         //println!("{:?}", group_inf.1);
         //println!("{}", get_cons(out, &group_inf.1));
         let _t = write_file(&mut clust_nwk_file, get_cons(out, &group_inf.1));
