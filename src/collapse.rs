@@ -169,15 +169,22 @@ fn write_file(f:&mut File, st:String) -> Result<bool, io::Error> {
     Ok(true)
 }
 
-fn get_cons(out:&String, samp_trees:&[String]) -> String {
+fn get_cons(out:&String, samp_trees:&[String], old_nwks:&[String]) -> (String, String) {
     let dir = PathBuf::from(out);
     let inp_nwk = dir.as_path().join("inp_tree.nwk");
-    
+    let old_inp_nwk_s = format!("{}/old_inp_tree.nwk",out.clone());
+    let old_inp_nwk = dir.as_path().join("old_inp_tree.nwk");
+
     let mut f_inp = File::create(inp_nwk).expect("could not create input newick file");
+    let mut old_f_inp = File::create(old_inp_nwk).expect("could not create old input newick file");
+
     for g in samp_trees.iter(){
         let _t=write_file(&mut f_inp, g.clone());
     }
-    println!("{:?}", samp_trees);
+    for g in old_nwks.iter(){
+        let _t=write_file(&mut old_f_inp, g.clone());
+    }
+    //println!("{:?}", samp_trees);
     let (code, output, error) = run_script::run_script!(
         r#"
         ./phylip_consensus/consense < phylip_consensus/input
@@ -185,20 +192,47 @@ fn get_cons(out:&String, samp_trees:&[String]) -> String {
          "#
     )
     .unwrap();
-    let cons_nwk = read_to_string("outtree")
+    
+    let mut cons_nwk = read_to_string("outtree")
         .expect("Something went wrong reading the file");
+    cons_nwk.retain(|c| !c.is_whitespace());
     println!("{}", cons_nwk);
+
+    let mut out_file = File::create("outtree").expect("outtree could not be opened");
+    let _t = write_file(&mut out_file, cons_nwk.clone());
+
+    let (code, output, error) = run_script::run_script!(
+        &format!("java -jar STELAR/STELAR.jar -i {} -st outtree > triplet_score", old_inp_nwk_s)
+    ).unwrap();
+    
+    let trip_score = read_to_string("triplet_score")
+        .expect("Something went wrong reading the score file");
+    println!("Trip Score {}", trip_score);
+    
+    
     let (code, output, error) = run_script::run_script!(
         r#"
         rm out*
-        
-            exit 0
-            "#
+        rm triplet_score
+        exit 0
+        "#
     ).unwrap();
-    cons_nwk
+    (cons_nwk, trip_score)
 }
 
 pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:usize, mtype:&str) {
+  
+    let (code, output, error) = run_script::run_script!(
+        r#"
+        rm out*
+        rm triplet_score
+        exit 0
+        "#
+    ).unwrap();
+    let (code, output, error) = run_script::run_script!(
+        &format!("rm {} {}", format!("{}/inp_tree.nwk",out.clone()), format!("{}/old_inp_tree.nwk",out.clone()))
+    ).unwrap();
+
     let g_union = create_union_find(&all_groups, ntxps as usize);
     let mut groups = HashMap::new();
     for i in 0..ntxps {
@@ -234,6 +268,8 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     let file_list_out = ConsensusFileList::new(out.clone());
     let mut mg_file = File::create(file_list_out.merged_groups_file).expect("could not create merged group file");
     let mut clust_nwk_file = File::create(file_list_out.cons_nwk_file).expect("could not create cluster newick file");
+    let mut trip_score_file = File::create(file_list_out.triplet_score_file).expect("could not create triplet score file");
+   // cons_stelar_nwk_file
     let mut old_group_file = File::create(file_list_out.old_group_file).expect("could not create cluster newick file");
     
     if mtype=="phylip" {
@@ -254,26 +290,35 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     for (merged_group, old_group) in mg {
         let mut m_group = merged_group.clone();
         m_group.insert_str(0, ">Group ");
+        let mut old_nwks=Vec::new();
         let _t = write_file(&mut old_group_file, m_group.clone()); //Writing 
         //Filler code for the old group writing- can be interlaced wtih get_group_tree
         for (_i,samp_hash) in samp_group_trees.iter().enumerate() {
             for (_j,g) in old_group.iter().enumerate() {
                 if samp_hash.contains_key(g){
                     let nwk_tree:String=get_binary_rooted_newick_string(samp_group_trees[_i].get(g).unwrap()); //individual tree
+                    old_nwks.push(nwk_tree.clone());
                     let _t = write_file(&mut old_group_file, nwk_tree);
                 }
             }
         }
-
-        let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees); // 
-        let _t = write_file(&mut mg_file, group_inf.0);
-        println!("Computing cluster for group {}", merged_group.clone());
-        // for (_i, g) in group_inf.1.iter().enumerate(){
-        //     let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
-        // }
-        //println!("{:?}", group_inf.1);
-        //println!("{}", get_cons(out, &group_inf.1));
-        let _t = write_file(&mut clust_nwk_file, get_cons(out, &group_inf.1));
+        if mtype=="phylip" {
+            let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees); // 
+            let _t = write_file(&mut mg_file, group_inf.0);
+            println!("Computing cluster for group {}", merged_group.clone());
+            for (_i, g) in group_inf.1.iter().enumerate(){
+                let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
+            }
+            //println!("{:?}", group_inf.1);
+            //println!("{}", get_cons(out, &group_inf.1));
+            let (cons_nwk, trip_score) = get_cons(out, &group_inf.1, &old_nwks);
+            let _t = write_file(&mut clust_nwk_file, cons_nwk);
+            let mut s_out=merged_group.clone();
+            s_out.push(' ');
+            s_out.push_str(&trip_score);
+            let _t = write_file(&mut trip_score_file, s_out);
+        }
+        m_group.insert_str(0, ">Group ");
     }
     let (code, output, error) = run_script::run_script!(
         r#"

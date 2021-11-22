@@ -8,8 +8,11 @@ use std::path::PathBuf;
 pub struct ConsensusFileList {
     pub old_group_file: PathBuf,
     pub cons_nwk_file: PathBuf,
+    pub cons_stelar_nwk_file: PathBuf,
     pub cluster_bp_splits_file: PathBuf,
     pub merged_groups_file: PathBuf,
+    pub triplet_score_file: PathBuf,
+    pub triplet_score_stel_file: PathBuf
     //pub groups_length: PathBuf,
 }
 impl ConsensusFileList {
@@ -29,7 +32,10 @@ impl ConsensusFileList {
             cluster_bp_splits_file: dir.as_path().join("cluster_bipart_splits.txt"),
             cons_nwk_file: dir.as_path().join("cluster_nwk.txt"),
             merged_groups_file: dir.as_path().join("merged_groups_length.txt"),
-            old_group_file:dir.as_path().join("old_group_file.txt")
+            old_group_file:dir.as_path().join("old_group_file.txt"),
+            cons_stelar_nwk_file:dir.as_path().join("cons_stelar_nwk.txt"),
+            triplet_score_file:dir.as_path().join("triplet_score.txt"),
+            triplet_score_stel_file:dir.as_path().join("triplet_score_stel.txt")
       //      groups_length: dir.as_path().join("groups_length.txt")
         }
     }
