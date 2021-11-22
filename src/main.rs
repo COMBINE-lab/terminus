@@ -405,9 +405,11 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             let mut co = File::create("co_file.txt").expect("could not create collapse order file");
             let _write = util::mapTrait::bipart_writer(&bipart_counter, &mut co, &tnames);
         }
-        else if m_type == "phylip"{
-            let all_groups:Vec<String> = bipart_counter.keys().cloned().collect();
-            collapse::use_phylip(&dir_paths, &prefix, &all_groups, ntxps, &m_type);
+        else{
+            if vec![String::from("phylip"), String::from("stelar")].contains(&m_type) {
+                let all_groups:Vec<String> = bipart_counter.keys().cloned().collect();
+                collapse::use_phylip(&dir_paths, &prefix, &all_groups, ntxps, &m_type);
+            }
         }
     }
     

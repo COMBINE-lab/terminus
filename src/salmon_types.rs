@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::io::BufReader;
 use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct ConsensusFileList {
     pub old_group_file: PathBuf,
     pub cons_nwk_file: PathBuf,

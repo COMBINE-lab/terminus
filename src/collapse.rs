@@ -220,6 +220,43 @@ fn get_cons(out:&String, samp_trees:&[String], old_nwks:&[String]) -> (String, S
     (cons_nwk, trip_score)
 }
 
+fn get_stel(out:&String, old_nwks:&[String]) -> (String, String) {
+    let dir = PathBuf::from(out);
+    let old_inp_nwk_s = format!("{}/old_inp_tree.nwk",out.clone());
+    let old_inp_nwk = dir.as_path().join("old_inp_tree.nwk");
+
+    let mut old_f_inp = File::create(old_inp_nwk).expect("could not create old input newick file");
+    for g in old_nwks.iter(){
+        let _t=write_file(&mut old_f_inp, g.clone());
+    }
+
+    let (code, output, error) = run_script::run_script!(
+        &format!("java -jar STELAR/STELAR.jar -i {} -o outtree", old_inp_nwk_s)
+    ).unwrap();
+    
+    let mut cons_nwk = read_to_string("outtree")
+        .expect("Something went wrong reading the file");
+    cons_nwk.retain(|c| !c.is_whitespace());
+    println!("{}", cons_nwk);
+
+    let (code, output, error) = run_script::run_script!(
+        &format!("java -jar STELAR/STELAR.jar -i {} -st outtree > triplet_score", old_inp_nwk_s)
+    ).unwrap();
+
+    let trip_score = read_to_string("triplet_score")
+        .expect("Something went wrong reading the score file");
+    println!("Trip Score {}", trip_score);
+    
+    
+    let (code, output, error) = run_script::run_script!(
+        r#"
+        rm out*
+        rm triplet_score
+        exit 0
+        "#
+    ).unwrap();
+    (cons_nwk, trip_score)
+} 
 pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:usize, mtype:&str) {
   
     let (code, output, error) = run_script::run_script!(
@@ -271,11 +308,26 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
    // cons_stelar_nwk_file
     let mut old_group_file = File::create(file_list_out.old_group_file).expect("could not create cluster newick file");
     
-    let mut clust_nwk_file = File::create(file_list_out.cons_nwk_file).expect("could not create cluster newick file");
-    let mut trip_score_file = File::create(file_list_out.triplet_score_file).expect("could not create triplet score file");
+    let mut clust_nwk_file = match mtype {
+        "phylip" => File::create(file_list_out.cons_nwk_file).expect("could not create cluster newick file"),
+        "stelar" => File::create(file_list_out.cons_stelar_nwk_file).expect("could not create cluster stelar newick file"),
+        _ => File::create("temp").expect("could not create cluster stelar newick file"),
+    };
+    let mut trip_score_file = match mtype {
+        "phylip" => File::create(file_list_out.triplet_score_file).expect("could not create cluster newick file"),
+        "stelar" => File::create(file_list_out.triplet_score_stel_file).expect("could not create cluster stelar newick file"),
+        _ => File::create("temp").expect("could not create cluster stelar newick file"),
+    };
 
-    let mut clust_stelar_nwk_file = File::create(file_list_out.cons_stelar_nwk_file).expect("could not create cluster stelar newick file");
-    let mut trip_score_stel_file = File::create(file_list_out.triplet_score_stel_file).expect("could not create triplet stelar score file");
+    
+//     if mtype=="phylip" {
+//         clust_nwk_file = 
+//         trip_score_file = File::create(file_list_out.).expect("could not create triplet score file");
+//    }
+//    else if mtype=="stelar" {
+//         clust_stelar_nwk_file = 
+//         trip_score_stel_file = File::create(file_list_out.triplet_score_stel_file).expect("could not create triplet stelar score file");
+//    }    
 
     for (merged_group, old_group) in mg {
         let mut m_group = merged_group.clone();
@@ -292,17 +344,11 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
                 }
             }
         }
+        
         if mtype=="phylip" {
-            
-            let (code, output, error) = run_script::run_script!(
-                &format!("rm {} {}", format!("{}/cons_stelar_nwk.txt",out.clone()), format!("{}/triplet_score_stel.txt",out.clone()))
-            ).unwrap();
-
             let inp_nwk_s = format!("{}/inp_tree.nwk",out.clone());
             let (code, output, error) = run_script::run_script!(
-                
                 &format!("echo {}  > phylip_consensus/input", inp_nwk_s)
-                
             ).unwrap();
             let (code, output, error) = run_script::run_script!(
                 r#"
@@ -321,10 +367,22 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
             //println!("{:?}", group_inf.1);
             //println!("{}", get_cons(out, &group_inf.1));
             let (cons_nwk, trip_score) = get_cons(out, &group_inf.1, &old_nwks);
-            let _t = write_file(&mut clust_nwk_file, cons_nwk);
+            
             let mut s_out=merged_group.clone();
             s_out.push(' ');
             s_out.push_str(&trip_score);
+            let _t = write_file(&mut clust_nwk_file, cons_nwk);
+            let _t = write_file(&mut trip_score_file, s_out);
+        }
+        
+        else if mtype=="stelar" {
+            
+            let (cons_nwk, trip_score) = get_stel(out, &old_nwks);
+            let mut s_out=merged_group.clone();
+            s_out.push(' ');
+            s_out.push_str(&trip_score);
+            
+            let _t = write_file(&mut clust_nwk_file, cons_nwk);
             let _t = write_file(&mut trip_score_file, s_out);
         }
         
