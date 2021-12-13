@@ -37,6 +37,11 @@ How to use terminus
 
 Terminus has two sub-commands, `group` and `collapse`. For detailed tutorial and usage please visit the [tutorial](https://combine-lab.github.io/terminus-tutorial/2020/running-terminus/) or the [documentation](https://terminus.readthedocs.io/en/latest/).
 
+Cite
+----
+[Sarkar, Hirak, et al. "Terminus enables the discovery of data-driven, robust transcript groups from RNA-seq data." Bioinformatics 36.Supplement_1 (2020): i102-i110.](https://academic.oup.com/bioinformatics/article/36/Supplement_1/i102/5870485)
+
+
 Authors
 -------
 
