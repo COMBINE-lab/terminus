@@ -311,11 +311,14 @@ fn do_collapse(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .map(|res| res.map(|e| e.path()))
         .filter(|res| res.as_ref().unwrap().is_dir())
         .collect::<Result<Vec<_>, io::Error>>()?;
-    
+    sal_dir_paths.sort();
+    println!("{:?}", sal_dir_paths);
     let mut dir_paths: Vec<&str> = Vec::new();
     for entry in sal_dir_paths.iter() {
         dir_paths.push(entry.as_path().to_str().unwrap());
     }
+    
+    
     let prefix: String = sub_m.value_of("out").unwrap().to_string();
 
     

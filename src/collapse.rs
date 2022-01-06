@@ -101,19 +101,19 @@ fn comp_diff(m_group:&String, oth_groups:&[String]) -> Vec<usize>{
     diff
 }
 
-fn get_group_trees(merged_group:&String, groups:&[String], samp_group_trees:&[HashMap<String,TreeNode>]) -> (String, Vec<String>) {
+fn get_group_trees(merged_group:&String, groups:&[String], samp_group_trees:&BTreeMap<String,HashMap<String,TreeNode>>) -> (String, Vec<String>) {
     /// Returns a tuple that contains merged group and total sample count along with child group and the number of sample that child group appears in 
     
     let mut samp_nwk:Vec<String> = Vec::new();
     let mut g_inf=String::from("");
-    for (_i,samp_hash) in samp_group_trees.iter().enumerate() {
+    for (exp,samp_hash) in samp_group_trees {
         let mut g_vec:Vec<String> = Vec::new();
         let mut s_trees:Vec<String> = Vec::new();
         for (_j,g) in groups.iter().enumerate() {
             if samp_hash.contains_key(g){
                 g_vec.push(g.clone());
                 //println!("{}\t{:?}",g, samp_group_trees[_i].get(g).unwrap().traverse_tree());
-                s_trees.push(get_binary_rooted_newick_string(samp_group_trees[_i].get(g).unwrap()));
+                s_trees.push(get_binary_rooted_newick_string(samp_group_trees.get(exp).unwrap().get(g).unwrap()));
             }
         }
         let l = s_trees.len();
@@ -157,7 +157,7 @@ fn get_group_trees(merged_group:&String, groups:&[String], samp_group_trees:&[Ha
         }
         samp_nwk.push(cur_nwk_trees.clone());
         let gs = g_vec.join(",");
-        g_inf.push_str(&format!("\t{}\t{}", _i.to_string(), gs));
+        g_inf.push_str(&format!("\t{}\t{}", exp, gs));
     }
 //    println!("{}\t{}", merged_group.clone(), count);
     g_inf.insert_str(0, &format!("{}", merged_group));
@@ -282,7 +282,7 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
     println!("Length of groups after merging {}", mg.len());
     
     println!("Reading group trees");
-    let mut samp_group_trees:Vec<HashMap<String,TreeNode>> = Vec::new(); //Vector containing group trees from each sample
+    let mut samp_group_trees:BTreeMap<String,HashMap<String,TreeNode>> = BTreeMap::new(); //Vector containing group trees from each sample
     let mut msamp_nwk_file:Vec<File> = Vec::new(); //Vector containing newick trees corresponding to each group
     // Storing group trees in each sample in an array along with ....
     for (i, dname) in dir_paths.iter().enumerate() {
@@ -290,16 +290,19 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
         let experiment_name = compo[0];
         let mut prefix_path = out.clone();
         prefix_path.push('/');
-        prefix_path.push_str(experiment_name);
+        prefix_path.push_str(experiment_name.clone());
 
         let file_list_out = FileList::new(prefix_path);
-        msamp_nwk_file.push(File::create(file_list_out.mgroup_nwk_file).expect("Could not open mgroup nwk file"));
+        if mtype=="phylip" {
+            msamp_nwk_file.push(File::create(file_list_out.mgroup_nwk_file).expect("Could not open mgroup nwk file"));
+        }
+        
         let file = File::open(file_list_out.collapse_order_file);
         let reader = BufReader::new(file.unwrap());
     
         let mut deserializer = serde_json::Deserializer::from_reader(reader);
         deserializer.disable_recursion_limit();
-        samp_group_trees.push(HashMap::deserialize(&mut deserializer).unwrap()); //Pushing hashmap containing trees corresponding to each group
+        samp_group_trees.insert(experiment_name.to_string(), HashMap::deserialize(&mut deserializer).unwrap()); //Pushing hashmap containing trees corresponding to each group
     }
     println!("Finished reading group trees");
     let file_list_out = ConsensusFileList::new(out.clone());
@@ -335,10 +338,10 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
         let mut old_nwks=Vec::new();
         let _t = write_file(&mut old_group_file, m_group.clone()); //Writing 
         //Filler code for the old group writing- can be interlaced wtih get_group_tree
-        for (_i,samp_hash) in samp_group_trees.iter().enumerate() {
+        for (exp,samp_hash) in &samp_group_trees {
             for (_j,g) in old_group.iter().enumerate() {
                 if samp_hash.contains_key(g){
-                    let nwk_tree:String=get_binary_rooted_newick_string(samp_group_trees[_i].get(g).unwrap()); //individual tree
+                    let nwk_tree:String=get_binary_rooted_newick_string(samp_group_trees.get(exp).unwrap().get(g).unwrap()); //individual tree
                     old_nwks.push(nwk_tree.clone());
                     let _t = write_file(&mut old_group_file, nwk_tree);
                 }
@@ -361,8 +364,10 @@ pub fn use_phylip(dir_paths:&[&str], out:&String, all_groups:&[String], ntxps:us
             let group_inf = get_group_trees(&merged_group, &old_group, &samp_group_trees); // 
             let _t = write_file(&mut mg_file, group_inf.0);
             println!("Computing cluster for group {}", merged_group.clone());
-            for (_i, g) in group_inf.1.iter().enumerate(){
-                let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
+            if mtype=="phylip" {
+                for (_i, g) in group_inf.1.iter().enumerate(){
+                    let _t = write_file(&mut msamp_nwk_file[_i], g.clone());
+                }
             }
             //println!("{:?}", group_inf.1);
             //println!("{}", get_cons(out, &group_inf.1));
