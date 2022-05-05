@@ -28,7 +28,7 @@ use rand_pcg::Pcg64;
 use refinery::Partition;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
-use crate::binary_tree::{TreeNode, sort_group_id};
+use crate::binary_tree::{TreeNode, sort_group_id, get_binary_rooted_newick_string};
 use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
 use std::iter::FromIterator;
 
@@ -138,6 +138,7 @@ pub fn group_writer2(
 
 pub fn collapse_order_writer(
     co_file: &mut File,
+    nwk_file: &mut File,
     groups: &HashMap<usize, Vec<usize>>,
     c_order: &[TreeNode]
 ) -> Result<bool, io::Error> {
@@ -151,6 +152,9 @@ pub fn collapse_order_writer(
     // co_updated.insert(2, c_order[10].clone());
     for (group_id, _) in groups {
         co_updated.insert(sort_group_id(&c_order[*group_id].id), c_order[*group_id].clone());
+        let mut nwk = get_binary_rooted_newick_string(&c_order[*group_id]);
+        nwk.push(';');
+        writeln!(nwk_file, "{}", nwk)?;
     }
     //println!("{:?}", co_updated);
     let err_write = format!("Could not create/write collapsed_order.json in {:?}", co_file);

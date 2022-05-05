@@ -277,10 +277,11 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     
     let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
     let mut co_file = File::create(file_list_out.collapse_order_file).expect("could not create collapse order file");
+    let mut nwk_file = File::create(file_list_out.group_nwk_file).expect("could not create group order file");
     // let mut co = File::create("co_file.txt").expect("could not create collapse order file");
     let _write = util::group_writer(&mut gfile, &groups);
    // let _write = util::order_group_writer(&mut gofile, &group_order, &groups);
-    let _write = util::collapse_order_writer(&mut co_file, &groups, &collapse_order);
+    let _write = util::collapse_order_writer(&mut co_file, &mut nwk_file, &groups, &collapse_order);
     //let _write = util::co_id_writer(&mut co, &groups, &collapse_order);
     
     // let file = File::open(ff);
