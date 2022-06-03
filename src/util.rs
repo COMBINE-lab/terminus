@@ -29,7 +29,7 @@ use refinery::Partition;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
 use crate::binary_tree::{TreeNode, sort_group_id, get_binary_rooted_newick_string};
-use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
+use crate::salmon_types::{EdgeInfo, EdgeInfoU, EqClassExperiment, FileList, MetaInfo, TxpRecord};
 use std::iter::FromIterator;
 
 // General functions to r/w files
@@ -866,7 +866,7 @@ pub fn eq_experiment_to_graph(
     original_id_to_old_id_map: &HashMap<usize, Vec<usize>>,
     group_order: &mut [String],
     collapse_order: &mut [TreeNode]
-) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
+) -> pg::Graph<usize, EdgeInfoU, petgraph::Undirected> {
     let start = Instant::now();
 
     let txpmode:bool = genevec.len() > 0;
@@ -1027,14 +1027,19 @@ pub fn eq_experiment_to_graph(
     println!("Number of true golden collapses {}", t_golden_collapses);
     println!("The refinery code ran for {:?}", part_start.elapsed());
     
-    let mut og = pg::Graph::<usize, EdgeInfo, petgraph::Undirected>::new_undirected();
-    for (i, _n) in exp.targets.iter().enumerate() {
-        let idx = og.add_node(i);
-        // the index assigned by the graph should be the
-        // order in which we add these
-        debug_assert_eq!(i, idx.index());
-    }
+    let mut og = pg::Graph::<usize, EdgeInfoU, petgraph::Undirected>::new_undirected();
 
+    ////// Comment from terminus
+    // for (i, _n) in exp.targets.iter().enumerate() {
+    //     let idx = og.add_node(i);
+    //     // the index assigned by the graph should be the
+    //     // order in which we add these
+    //     debug_assert_eq!(i, idx.index());
+    // }
+    for _i in 0..gibbs_mat.shape()[0] {
+            let idx = og.add_node(_i);
+            debug_assert_eq!(_i, idx.index());
+    }
     // compute the mean of the elemenrs
     let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
     let gibbs_mat_spread = spread(&gibbs_mat, Axis(1));
@@ -1082,115 +1087,191 @@ pub fn eq_experiment_to_graph(
     //let gibbs_corr_mat = gibbs_filtered_mat.pearson_correlation().unwrap();
     // println!("Computing correlation {:?}", start_corr.elapsed());
     //correlation(data1: &[f64], stride1: usize, data2: &[f64], stride2: usize, n: usize)
-
-    for (i, x) in exp.classes.iter().enumerate() {
-        let ns = x.0;
-        let ws = x.1;
-        let eq_count = x.2;
-        assert!(eq_count == eq_class_count[i]);
-
-        let thresh = 0.1 * (1.0 / ns.len() as f32);
-        let retained: std::vec::Vec<usize> = (0..ns.len())
-            .filter_map(|j| {
-                if ws[j as usize] >= thresh {
-                    Some(ns[j] as usize)
-                } else {
-                    None
-                }
-            })
-            .collect();
-            
-        for a in 0..retained.len() {
-            let mut na = retained[a] as usize;
-            let na_root = unionfind_struct.find(na);
-            
-            if na_root != na {
-                na = na_root;
+    
+    for _i in 0..1000 {
+    // for _i in 0..100 {    
+        let na = unionfind_struct.find(_i);
+        let mut min_delta = 100000.0;
+        let mut min_nb = _i;
+        if (!endpoints_overdispersed(&infrv_array, infrv_quant, na, na))
+            || (!filtered_indices_mean_vec[na]) {
+                continue;
             }
-           
-            for nb in retained.iter().skip(a + 1) {
-                let mut nbd = *nb as usize;
+        println!("i is {}",_i);
+        for _j in _i..gibbs_mat.shape()[0] {
+        
+            let nb = unionfind_struct.find(_j);
+            // if _i==93 {
+            //     println!("{}",nb);
+            //     println!("{}",endpoints_overdispersed(&infrv_array, infrv_quant, na, na));
+            //     println!("{}",endpoints_overdispersed(&infrv_array, infrv_quant, na, nb));
+            //     println!("{}",(filtered_indices_vec[na] || filtered_indices_vec[nb]));
+            //     println!("{}",(filtered_indices_mean_vec[na] && filtered_indices_mean_vec[nb]));
+            // }
 
-                if txpmode {
-                    let gene_a = genevec[na];
-                    let gene_b = genevec[nbd];
-                    if gene_a != gene_b {
-                        continue;
-                    }
-                }
-
-                let nb_root = unionfind_struct.find(nbd);
-                if nb_root != nbd {
-                    nbd = nb_root;
-                }
-
-                if na == nbd {
-                    continue;
-                }
-
-                if endpoints_overdispersed(&infrv_array, infrv_quant, na, nbd)
-                    && (filtered_indices_vec[na] || filtered_indices_vec[nbd])
-                //&&
-                //  (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[*nb])
-                {
-                    let (u, v) = if na < nbd { (na, nbd) } else { (nbd, na) };
+            if na == nb {
+                continue;
+            }
+            if endpoints_overdispersed(&infrv_array, infrv_quant, na, nb)
+                    && (filtered_indices_vec[na] || filtered_indices_vec[nb])
+                &&
+                 (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[nb])
+            {
+                    let (u, v) = if na < nb { (na, nb) } else { (nb, na) };
                     let va = pg::graph::NodeIndex::new(u);
                     let vb = pg::graph::NodeIndex::new(v);
                     let e = og.find_edge(va, vb);
-                    match e {
+                    match e {   
                         Some(ei) => {
                             let mut ew = og.edge_weight_mut(ei).unwrap();
-                            ew.count += eq_count;
-                            ew.eqlist.push(i);
                         }
                         None => {
                             // only add the edge if the correlation is sufficientl
                             // small
-                            let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, *nb);
+                            let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, nb);
                             // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
                             //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
 
-                            let s = format!("{}\t{}\t{}\n", na, *nb, delta);
-                            delta_file
-                                .write_all(s.as_bytes())
-                                .expect("failed to write to delta.log file");
-                            //    if (u == 116212) && (v == 116212){
-                            //        println!("=================={}================", delta);
-                            //    }
+                            min_delta = delta.min(min_delta);
+                            if min_delta == delta {
+                                min_nb = nb;
+                            }
+
+                            
                             if delta < thr {
                                 og.add_edge(
                                     va,
                                     vb,
-                                    EdgeInfo {
+                                    EdgeInfoU {
                                         infrv_gain: delta,
-                                        count: eq_count,
-                                        state: -1,
-                                        eqlist: vec![i],
+                                        state: -1
                                     },
                                 );
                             }
                         }
                     }
                 } // if not filtered and count big enough
-            }
+
         }
+        if na != min_nb {
+            // let s = format!("{}\t{}\t{}\n", na, min_nb, min_delta);
+            let s = format!("{}\t{}\t{}\n", na, 1, min_delta);
+            delta_file
+                .write_all(s.as_bytes())
+                .expect("failed to write to delta.log file");
+        }
+        
     }
+    
+    
+    // for (i, x) in exp.classes.iter().enumerate() {
+    //     let ns = x.0;
+    //     let ws = x.1;
+    //     let eq_count = x.2;
+    //     assert!(eq_count == eq_class_count[i]);
+
+    //     let thresh = 0.1 * (1.0 / ns.len() as f32);
+    //     let retained: std::vec::Vec<usize> = (0..ns.len())
+    //         .filter_map(|j| {
+    //             if ws[j as usize] >= thresh {
+    //                 Some(ns[j] as usize)
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect();
+            
+    //     for a in 0..retained.len() {
+    //         let mut na = retained[a] as usize;
+    //         let na_root = unionfind_struct.find(na);
+            
+    //         if na_root != na {
+    //             na = na_root;
+    //         }
+           
+    //         for nb in retained.iter().skip(a + 1) {
+    //             let mut nbd = *nb as usize;
+
+    //             if txpmode {
+    //                 let gene_a = genevec[na];
+    //                 let gene_b = genevec[nbd];
+    //                 if gene_a != gene_b {
+    //                     continue;
+    //                 }
+    //             }
+
+    //             let nb_root = unionfind_struct.find(nbd);
+    //             if nb_root != nbd {
+    //                 nbd = nb_root;
+    //             }
+
+    //             if na == nbd {
+    //                 continue;
+    //             }
+
+    //             if endpoints_overdispersed(&infrv_array, infrv_quant, na, nbd)
+    //                 && (filtered_indices_vec[na] || filtered_indices_vec[nbd])
+    //             //&&
+    //             //  (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[*nb])
+    //             {
+    //                 let (u, v) = if na < nbd { (na, nbd) } else { (nbd, na) };
+    //                 let va = pg::graph::NodeIndex::new(u);
+    //                 let vb = pg::graph::NodeIndex::new(v);
+    //                 let e = og.find_edge(va, vb);
+    //                 match e {
+    //                     Some(ei) => {
+    //                         let mut ew = og.edge_weight_mut(ei).unwrap();
+    //                         ew.count += eq_count;
+    //                         ew.eqlist.push(i);
+    //                     }
+    //                     None => {
+    //                         // only add the edge if the correlation is sufficientl
+    //                         // small
+    //                         let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, *nb);
+    //                         // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
+    //                         //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
+
+    //                         let s = format!("{}\t{}\t{}\n", na, *nb, delta);
+    //                         delta_file
+    //                             .write_all(s.as_bytes())
+    //                             .expect("failed to write to delta.log file");
+    //                         //    if (u == 116212) && (v == 116212){
+    //                         //        println!("=================={}================", delta);
+    //                         //    }
+    //                         if delta < thr {
+    //                             og.add_edge(
+    //                                 va,
+    //                                 vb,
+    //                                 EdgeInfo {
+    //                                     infrv_gain: delta,
+    //                                     count: eq_count,
+    //                                     state: -1,
+    //                                     eqlist: vec![i],
+    //                                 },
+    //                             );
+    //                         }
+    //                     }
+    //                 }
+    //             } // if not filtered and count big enough
+    //         }
+    //     }
+    // }
 
     let og2 = og.filter_map(
         |_ni, n| Some(*n),
         |ei, e| {
             let (a, b) = og.edge_endpoints(ei).unwrap();
             let min_mean = gibbs_mat_mean[a.index()].min(gibbs_mat_mean[b.index()]);
-            if (e.count as f64) > min_mean {
-                Some(EdgeInfo {
+  //          if (e.count as f64) > min_mean {
+                Some(EdgeInfoU {
                     infrv_gain: e.infrv_gain,
-                    count: e.count,
+    //                count: e.count,
                     state: -1,
-                    eqlist: e.eqlist.clone(),
-                })
-            } else {
-                None
-            }
+    //                eqlist: e.eqlist.clone(),
+               })
+            // } else {
+            //     None
+            // }
         },
     );
     println!("Prev node count: {}", og.node_count());
@@ -1305,7 +1386,7 @@ pub fn work_on_component(
     gibbs_mat: &mut Array2<f64>,
     gibbs_mat_mean: &mut Array1<f64>,
     unionfind_struct: &mut UnionFind<usize>,
-    og: &mut pg::Graph<usize, EdgeInfo, petgraph::Undirected>,
+    og: &mut pg::Graph<usize, EdgeInfoU, petgraph::Undirected>,
     comp: &[pg::graph::NodeIndex],
     num_collapses: &mut usize,
     thr: f64,
@@ -1387,7 +1468,7 @@ pub fn work_on_component(
             let min_mean = gibbs_mat_mean[source].min(gibbs_mat_mean[target]);
 
             // the count along this edge must be large enough to "matter"
-            if f64::from(u_to_v_info.count) >= min_mean {
+  //          if f64::from(u_to_v_info.count) >= min_mean {
                 let msg = format!(
                     "{}\t{}\t{}\t{}\t{}\n",
                     source, target, infrv_array[source], infrv_array[target], infrv_gain
@@ -1509,8 +1590,8 @@ pub fn work_on_component(
                     let v_to_x_inner = og.find_edge(target_node, xn).unwrap();
                     let v_to_x_info_inner = og.edge_weight(v_to_x_inner).unwrap();
 
-                    let v_to_x_count = v_to_x_info_inner.count;
-                    let v_to_x_eqlist = &v_to_x_info_inner.eqlist.to_vec();
+                    // let v_to_x_count = v_to_x_info_inner.count;
+                    // let v_to_x_eqlist = &v_to_x_info_inner.eqlist.to_vec();
 
                     let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
@@ -1521,11 +1602,9 @@ pub fn work_on_component(
                     og.add_edge(
                         source_node,
                         xn,
-                        EdgeInfo {
+                        EdgeInfoU {
                             infrv_gain: delta,
-                            count: v_to_x_count,
-                            state: new_state,
-                            eqlist: v_to_x_eqlist.to_vec(),
+                            state: new_state
                         },
                     );
 
@@ -1568,31 +1647,31 @@ pub fn work_on_component(
                     let v_to_x_eq: Vec<usize>;
                     {
                         let v_to_x_info = og.edge_weight(v_to_x_inner).unwrap();
-                        v_to_x_count = v_to_x_info.count;
-                        v_to_x_eq = v_to_x_info.eqlist.clone();
+                        // v_to_x_count = v_to_x_info.count;
+                        // v_to_x_eq = v_to_x_info.eqlist.clone();
                     }
 
                     let mut u_to_x_info = og.edge_weight_mut(u_to_x_inner).unwrap();
 
                     // v_to_x_eq.sort();
-                    let intersecting_eqlist = intersect(&v_to_x_eq, &u_to_x_info.eqlist);
+               //     let intersecting_eqlist = intersect(&v_to_x_eq, &u_to_x_info.eqlist);
                     let curr_state = u_to_x_info.state;
 
-                    let mut sum = 0_u32;
-                    for i in intersecting_eqlist.iter() {
-                        sum += eq_class_count[*i as usize];
-                    }
-                    let tot_current_count = v_to_x_count + u_to_x_info.count;
+                    // let mut sum = 0_u32;
+                    // for i in intersecting_eqlist.iter() {
+                    //     sum += eq_class_count[*i as usize];
+                    // }
+                    // let tot_current_count = v_to_x_count + u_to_x_info.count;
 
                     // TODO(@hiraksarkar) : once confident, we can remove this check
-                    if sum > tot_current_count {
-                        println!("sum = {}, tot_current_count = {}", sum, tot_current_count);
-                        println!(
-                            "u-x : {:?}, v-x : {:?}, intersection : {:?}",
-                            u_to_x_info.eqlist, v_to_x_eq, intersecting_eqlist
-                        );
-                        std::process::exit(1);
-                    }
+                    // if sum > tot_current_count {
+                    //     println!("sum = {}, tot_current_count = {}", sum, tot_current_count);
+                    //     println!(
+                    //         "u-x : {:?}, v-x : {:?}, intersection : {:?}",
+                    //         u_to_x_info.eqlist, v_to_x_eq, intersecting_eqlist
+                    //     );
+                    //     std::process::exit(1);
+                    // }
 
                     // FIXME(@hiraksarkar) : bootleg intersection --- replace with the proper function
                     // once we have it
@@ -1602,16 +1681,16 @@ pub fn work_on_component(
                     //    }
                     //}
                     //u_to_x_info.eqlist.sort();
-                    u_to_x_info.eqlist = union(&u_to_x_info.eqlist.to_vec(), &v_to_x_eq);
+                    // u_to_x_info.eqlist = union(&u_to_x_info.eqlist.to_vec(), &v_to_x_eq);
 
-                    let final_count = tot_current_count - sum;
+                    // let final_count = tot_current_count - sum;
 
                     let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
                     u_to_x_info.infrv_gain = delta;
-                    u_to_x_info.count = final_count;
+                    // u_to_x_info.count = final_count;
                     u_to_x_info.state += 1;
 
                     // update heap
@@ -1639,7 +1718,7 @@ pub fn work_on_component(
                     }
                     og.remove_edge(v_to_x_inner);
                 }
-            }
+            //}
         }
     }
     //println!("curr state {}", curr_state);

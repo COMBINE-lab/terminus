@@ -223,7 +223,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &mut collapse_order
     );
     
-    util::verify_graph(&eq_class_counts, &mut gr);
+    //util::verify_graph(&eq_class_counts, &mut gr);
     // Go over the graph and keep collapsing
     // edges until we hit a point where there
     // are no more edges to that satisfies the criteria

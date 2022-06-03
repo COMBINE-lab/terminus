@@ -139,6 +139,11 @@ pub struct EdgeInfo {
     pub eqlist: Vec<usize>,
 }
 
+pub struct EdgeInfoU {
+    pub infrv_gain: f64,
+    pub state: i32
+}
+
 #[derive(Debug, Default)]
 pub struct EqList {
     pub offsets: Vec<usize>,
