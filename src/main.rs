@@ -205,9 +205,9 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     for i in 0..eq_class.ntarget {
         group_order.push(i.to_string())
     }
- 
+    
    
-    let mut gr = util::eq_experiment_to_graph(
+    let mut ed_vec = util::eq_experiment_to_graph(
         &eq_class,
         &mut gibbs_array,
         &eq_class_counts,
@@ -223,33 +223,28 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &mut collapse_order
     );
     
-    //util::verify_graph(&eq_class_counts, &mut gr);
-    // Go over the graph and keep collapsing
-    // edges until we hit a point where there
-    // are no more edges to that satisfies the criteria
-    // and we collapse
+
 
     // connected coponents
-    let num_connected_components = connected_components(&gr);
-    println!("#Connected components {:?}", num_connected_components);
+//     let num_connected_components = connected_components(&gr);
+//     println!("#Connected components {:?}", num_connected_components);
 
     let mut num_collapses = 0_usize;
 
-    //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
+//     //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
     let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
         .expect("could not create collapse.log");
 
-    let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
-        .node_indices()
-        .map(|x| petgraph::graph::NodeIndex::new(x.index()))
-        .collect();
+//     let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
+//         .node_indices()
+//         .map(|x| petgraph::graph::NodeIndex::new(x.index()))
+//         .collect();
     util::work_on_component(
         &eq_class_counts,
         &mut gibbs_array,
         &mut gibbs_mat_mean,
         &mut unionfind_struct,
-        &mut gr,
-        &gcomp,
+        &mut ed_vec,
         &mut num_collapses,
         thr,
         p,

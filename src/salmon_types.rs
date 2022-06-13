@@ -3,6 +3,7 @@ use std::fs::*;
 use std::hash::Hash;
 use std::io::BufReader;
 use std::path::PathBuf;
+use ordered_float::*;
 
 #[derive(Debug,Clone)]
 pub struct ConsensusFileList {
@@ -142,6 +143,15 @@ pub struct EdgeInfo {
 pub struct EdgeInfoU {
     pub infrv_gain: f64,
     pub state: i32
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EdgeState {
+    pub infrv_gain: OrderedFloat<f64>,
+    pub source: usize,
+    pub target: usize,
+    pub state: i32,
+    pub rep:i32
 }
 
 #[derive(Debug, Default)]

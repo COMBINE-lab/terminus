@@ -29,7 +29,7 @@ use refinery::Partition;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
 use crate::binary_tree::{TreeNode, sort_group_id, get_binary_rooted_newick_string};
-use crate::salmon_types::{EdgeInfo, EdgeInfoU, EqClassExperiment, FileList, MetaInfo, TxpRecord};
+use crate::salmon_types::{EdgeInfo, EdgeState, EdgeInfoU, EqClassExperiment, FileList, MetaInfo, TxpRecord};
 use std::iter::FromIterator;
 
 // General functions to r/w files
@@ -866,12 +866,13 @@ pub fn eq_experiment_to_graph(
     original_id_to_old_id_map: &HashMap<usize, Vec<usize>>,
     group_order: &mut [String],
     collapse_order: &mut [TreeNode]
-) -> pg::Graph<usize, EdgeInfoU, petgraph::Undirected> {
+) -> HashMap<String,HashMap::<String,EdgeState>> {
     let start = Instant::now();
 
     let txpmode:bool = genevec.len() > 0;
     let asemode:bool = original_id_to_old_id_map.len() > 0;
 
+    
     println!("txp mode and ase mode {},{}", asemode, txpmode);
     println!("Creating partition refinery");
     let mut part_cache = HashSet::new();
@@ -1079,17 +1080,10 @@ pub fn eq_experiment_to_graph(
 
     //let shape = gibbs_mat.shape() ;
     let infrv_array = infrv(&gibbs_mat, Axis(1));
-    //let infrv_array = variance(&gibbs_mat, Axis(1));
-
-    //let start_corr = Instant::now();
-    // let gibbs_filtered_mat = keep_rows(&gibbs_mat, &filtered_indices);
-    // println!("Duration for computing sub matrix {:?}", start_corr.elapsed());
-    //let gibbs_corr_mat = gibbs_filtered_mat.pearson_correlation().unwrap();
-    // println!("Computing correlation {:?}", start_corr.elapsed());
-    //correlation(data1: &[f64], stride1: usize, data2: &[f64], stride2: usize, n: usize)
-    
-    for _i in 0..1000 {
-    // for _i in 0..100 {    
+    let mut edge_vec:HashMap<String,HashMap<String,EdgeState>> = HashMap::new();
+    let mut edge = 0;
+    for _i in 0..gibbs_mat.shape()[0] {
+    // for _i in 0..1000 {    
         let na = unionfind_struct.find(_i);
         let mut min_delta = 100000.0;
         let mut min_nb = _i;
@@ -1099,7 +1093,7 @@ pub fn eq_experiment_to_graph(
             }
         println!("i is {}",_i);
         for _j in _i..gibbs_mat.shape()[0] {
-        
+        // for _j in _i..1000 {
             let nb = unionfind_struct.find(_j);
             // if _i==93 {
             //     println!("{}",nb);
@@ -1118,44 +1112,54 @@ pub fn eq_experiment_to_graph(
                  (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[nb])
             {
                     let (u, v) = if na < nb { (na, nb) } else { (nb, na) };
-                    let va = pg::graph::NodeIndex::new(u);
-                    let vb = pg::graph::NodeIndex::new(v);
-                    let e = og.find_edge(va, vb);
-                    match e {   
-                        Some(ei) => {
-                            let mut ew = og.edge_weight_mut(ei).unwrap();
-                        }
-                        None => {
-                            // only add the edge if the correlation is sufficientl
-                            // small
-                            let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, nb);
-                            // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
-                            //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
+                   
+                    let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, nb);
+                    // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
+                    //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
 
-                            min_delta = delta.min(min_delta);
-                            if min_delta == delta {
-                                min_nb = nb;
-                            }
-
-                            
-                            if delta < thr {
-                                og.add_edge(
-                                    va,
-                                    vb,
-                                    EdgeInfoU {
-                                        infrv_gain: delta,
-                                        state: -1
-                                    },
-                                );
-                            }
-                        }
+                    min_delta = delta.min(min_delta);
+                    if min_delta == delta {
+                        min_nb = nb;
                     }
-                } // if not filtered and count big enough
 
+                    if delta < thr {
+                        edge = edge+1;
+                        let key = edge_vec.entry(format!("{}",u)).or_insert(HashMap::new());
+                        key.insert(format!("{}_{}", u, v),
+                            EdgeState {
+                                infrv_gain:OrderedFloat(delta),
+                                source:u,
+                                target:v,
+                                state:-1,
+                                rep:1
+                            });
+                        
+                        let key = edge_vec.entry(format!("{}",v)).or_insert(HashMap::new());
+                        /// Add the reverse edge in order to keep track of neigbors
+                        /// if 1_2 is an edge, then 2's neigbor is also 1, which would be lost if we were to pick from the queue 2 first
+                        /// State 1 means actual edge, -1 the reverse edge, 0 it is in heap
+                        key.insert(format!("{}_{}", v, u),
+                            EdgeState {
+                                infrv_gain:OrderedFloat(delta),
+                                source:v,
+                                target:u,
+                                state:-1,
+                                rep:-1
+                            });
+                    }
+                    
+                } // if not filtered and count big enough
+            // if na != min_nb {
+            //     // let s = format!("{}\t{}\t{}\n", na, min_nb, min_delta);
+            //     delta_file
+            //         .write_all(s.as_bytes())
+            //         .expect("failed to write to delta.log file");
+            // }
         }
+        
         if na != min_nb {
-            // let s = format!("{}\t{}\t{}\n", na, min_nb, min_delta);
-            let s = format!("{}\t{}\t{}\n", na, 1, min_delta);
+            println!("nb {}", min_nb);
+            let s = format!("{}\t{}\t{}\n", na, min_nb, min_delta);
             delta_file
                 .write_all(s.as_bytes())
                 .expect("failed to write to delta.log file");
@@ -1163,124 +1167,8 @@ pub fn eq_experiment_to_graph(
         
     }
     
-    
-    // for (i, x) in exp.classes.iter().enumerate() {
-    //     let ns = x.0;
-    //     let ws = x.1;
-    //     let eq_count = x.2;
-    //     assert!(eq_count == eq_class_count[i]);
-
-    //     let thresh = 0.1 * (1.0 / ns.len() as f32);
-    //     let retained: std::vec::Vec<usize> = (0..ns.len())
-    //         .filter_map(|j| {
-    //             if ws[j as usize] >= thresh {
-    //                 Some(ns[j] as usize)
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect();
-            
-    //     for a in 0..retained.len() {
-    //         let mut na = retained[a] as usize;
-    //         let na_root = unionfind_struct.find(na);
-            
-    //         if na_root != na {
-    //             na = na_root;
-    //         }
-           
-    //         for nb in retained.iter().skip(a + 1) {
-    //             let mut nbd = *nb as usize;
-
-    //             if txpmode {
-    //                 let gene_a = genevec[na];
-    //                 let gene_b = genevec[nbd];
-    //                 if gene_a != gene_b {
-    //                     continue;
-    //                 }
-    //             }
-
-    //             let nb_root = unionfind_struct.find(nbd);
-    //             if nb_root != nbd {
-    //                 nbd = nb_root;
-    //             }
-
-    //             if na == nbd {
-    //                 continue;
-    //             }
-
-    //             if endpoints_overdispersed(&infrv_array, infrv_quant, na, nbd)
-    //                 && (filtered_indices_vec[na] || filtered_indices_vec[nbd])
-    //             //&&
-    //             //  (filtered_indices_mean_vec[na] && filtered_indices_mean_vec[*nb])
-    //             {
-    //                 let (u, v) = if na < nbd { (na, nbd) } else { (nbd, na) };
-    //                 let va = pg::graph::NodeIndex::new(u);
-    //                 let vb = pg::graph::NodeIndex::new(v);
-    //                 let e = og.find_edge(va, vb);
-    //                 match e {
-    //                     Some(ei) => {
-    //                         let mut ew = og.edge_weight_mut(ei).unwrap();
-    //                         ew.count += eq_count;
-    //                         ew.eqlist.push(i);
-    //                     }
-    //                     None => {
-    //                         // only add the edge if the correlation is sufficientl
-    //                         // small
-    //                         let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, *nb);
-    //                         // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
-    //                         //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
-
-    //                         let s = format!("{}\t{}\t{}\n", na, *nb, delta);
-    //                         delta_file
-    //                             .write_all(s.as_bytes())
-    //                             .expect("failed to write to delta.log file");
-    //                         //    if (u == 116212) && (v == 116212){
-    //                         //        println!("=================={}================", delta);
-    //                         //    }
-    //                         if delta < thr {
-    //                             og.add_edge(
-    //                                 va,
-    //                                 vb,
-    //                                 EdgeInfo {
-    //                                     infrv_gain: delta,
-    //                                     count: eq_count,
-    //                                     state: -1,
-    //                                     eqlist: vec![i],
-    //                                 },
-    //                             );
-    //                         }
-    //                     }
-    //                 }
-    //             } // if not filtered and count big enough
-    //         }
-    //     }
-    // }
-
-    let og2 = og.filter_map(
-        |_ni, n| Some(*n),
-        |ei, e| {
-            let (a, b) = og.edge_endpoints(ei).unwrap();
-            let min_mean = gibbs_mat_mean[a.index()].min(gibbs_mat_mean[b.index()]);
-  //          if (e.count as f64) > min_mean {
-                Some(EdgeInfoU {
-                    infrv_gain: e.infrv_gain,
-    //                count: e.count,
-                    state: -1,
-    //                eqlist: e.eqlist.clone(),
-               })
-            // } else {
-            //     None
-            // }
-        },
-    );
-    println!("Prev node count: {}", og.node_count());
-    println!("Prev edge count: {}", og.edge_count());
-    println!("New node count: {}", og2.node_count());
-    println!("New edge count: {}", og2.edge_count());
-    //println!("# cc : {}", pg::algo::connected_components(&og));
-    println!("Elapsed time for computing graph {:?}", start.elapsed());
-    og2
+    println!("{} number of edges", edge);
+    return edge_vec
 }
 
 // find intersection
@@ -1354,13 +1242,6 @@ fn union<T: std::cmp::PartialOrd + Copy>(a: &[T], b: &[T]) -> std::vec::Vec<T> {
     out
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct EdgeState {
-    infrv_gain: OrderedFloat<f64>,
-    source: usize,
-    target: usize,
-    state: i32,
-}
 
 pub fn verify_graph(
     eq_class_count: &[u32],
@@ -1379,15 +1260,13 @@ pub fn verify_graph(
     }
 }
 
-//util::work_on_component(&eq_class, &gibbs_array, &og, &comp);
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn work_on_component(
     eq_class_count: &[u32],
     gibbs_mat: &mut Array2<f64>,
     gibbs_mat_mean: &mut Array1<f64>,
     unionfind_struct: &mut UnionFind<usize>,
-    og: &mut pg::Graph<usize, EdgeInfoU, petgraph::Undirected>,
-    comp: &[pg::graph::NodeIndex],
+    edge_vec: &mut HashMap<String, HashMap<String, EdgeState>>,
     num_collapses: &mut usize,
     thr: f64,
     infrv_quant: f64,
@@ -1399,28 +1278,28 @@ pub fn work_on_component(
     let mut infrv_array = infrv(&gibbs_mat, Axis(1));
     //let mut infrv_array = variance(&gibbs_mat, Axis(1));
     //let shape = gibbs_mat.shape().to_vec() ;
-
     let mut heap = BinaryHeap::new_min();
-
-    for node in comp.iter() {
-        for e in og.edges(*node) {
-            // let (mut min_node, mut max_node) = (node_deref, next_node);
-            let source = e.source().index();
-            let target = e.target().index();
-            let w = e.weight().infrv_gain;
+    for ew in edge_vec.values() {
+        for (edge, edge_w) in ew.iter() {   
+            let source = edge_w.source;
+            let target = edge_w.target;
+            let w = edge_w.infrv_gain;
+            let rep = edge_w.rep;
             let (u, v) = if source > target {
                 (target, source)
             } else {
                 (source, target)
             };
             assert!(u < v, "source = {}, target = {}", u, v);
-
-            heap.push(EdgeState {
-                infrv_gain: OrderedFloat(w),
-                source: u,
-                target: v,
-                state: -1,
-            });
+            if rep==1 {
+                heap.push(EdgeState {
+                    infrv_gain: OrderedFloat(*w),
+                    source: u,
+                    target: v,
+                    state: -1,
+                    rep: 0
+                });
+            }
         }
     }
 
@@ -1429,299 +1308,268 @@ pub fn work_on_component(
         source,
         target,
         state,
+        rep
     }) = heap.pop()
     {
-        // take the next available edge that can be collapsed
-        // correlation less than threashold
-        if infrv_gain < OrderedFloat(thr) {
-            // println!("mincorr {}\r",corr);
-            // if the edge count satisfies the criteria
-            let source_node = pg::graph::NodeIndex::new(source);
-            let target_node = pg::graph::NodeIndex::new(target);
-
-            assert!(
-                source_node.index() < target_node.index(),
-                "source = {}, source index = {}, target = {}, target index = {}",
-                source,
-                source_node.index(),
-                target,
-                target_node.index()
-            );
-
-            let u_to_v_id_opt = og.find_edge(source_node, target_node);
-
-            // only proceed if this edge still exists
-            if u_to_v_id_opt.is_none() {
-                continue;
-            }
-
-            let u_to_v_id = u_to_v_id_opt.unwrap();
-            let u_to_v_info = og.edge_weight_mut(u_to_v_id).unwrap();
-
-            // only proceed if the state of this edge when
-            // placed on the heap is still the current state
-            if u_to_v_info.state != state {
-                continue;
-            }
-
-            // the min posterior mean among u and v
-            let min_mean = gibbs_mat_mean[source].min(gibbs_mat_mean[target]);
-
-            // the count along this edge must be large enough to "matter"
-  //          if f64::from(u_to_v_info.count) >= min_mean {
-                let msg = format!(
-                    "{}\t{}\t{}\t{}\t{}\n",
-                    source, target, infrv_array[source], infrv_array[target], infrv_gain
-                );
-                //println!("{}",msg);
-                cfile
-                    .write_all(&msg.into_bytes())
-                    .expect("could not write into collapse log");
-
-                // one collapse guaranteed
-                *num_collapses += 1;
-
-                // remove the collapsed edge first so that
-                // u is not in neighbors(v) and
-                // v is not in neighbors(u)
-                og.remove_edge(u_to_v_id);
-
-                // it's candidate for collapse
-                // when we collapse we modify the
-                // following
-                // i. gibbs_mat
-                // ii. gibbs_mat_mean
-                // iii. Each neighbor of u and v
-                // iv. heap
-                // v. unionfind_array
-                let mut act_target = unionfind_struct.find(target as usize);
-                let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
-                let merge = unionfind_struct.union(source as usize, target);
-                if merge{
-                    let act_source = unionfind_struct.find(source as usize) as usize;
-                    if act_source==act_target{
-                        act_target = par_source;
-                    }
-                    //order_group(source as usize, *t as usize, group_order);
-                    //println!("{}",collapse_order[*t as usize].id);
-                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
-                    collapse_order[act_target as usize].clone());
-                }
-                
-                let to_add = gibbs_mat.index_axis(Axis(0), target).to_owned();
-                let mut s = gibbs_mat.slice_mut(s![source, ..]);
-                s += &to_add;
-                infrv_array[source] = infrv_1d(s.view());
-                gibbs_mat_mean[source] = s.sum() / (s.len() as f64);
-
-                // update correlation for (u*v) to new and existing neighbors
-                let mut source_adj: Vec<usize> = og
-                    .neighbors(source_node)
-                    .map(|n| n.clone().index())
-                    .collect();
-                let mut target_adj: Vec<usize> = og
-                    .neighbors(target_node)
-                    .map(|n| n.clone().index())
-                    .collect();
-
-                source_adj.sort_unstable();
-                target_adj.sort_unstable();
-
-                source_adj.dedup();
-                target_adj.dedup();
-                let common_ids = intersect(&source_adj, &target_adj);
-
-                // edge u-v is collapsed
-                // if u-x is already an edge, but v-x is *not*
-                // then we don't update count
-                for x in source_adj.iter() {
-                    if common_ids.contains(x) {
-                        continue;
-                    }
-                    // it is only neighbor of u
-                    // so we need to update correlation
-
-                    let xn = pg::graph::NodeIndex::new(*x);
-                    let u_to_x_inner = og.find_edge(source_node, xn).unwrap();
-                    let mut u_to_x_info_inner = og.edge_weight_mut(u_to_x_inner).unwrap();
-                    let curr_state = u_to_x_info_inner.state;
-
-                    let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
-                    // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
-                    // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
-
-                    u_to_x_info_inner.infrv_gain = delta;
-                    u_to_x_info_inner.state += 1;
-
-                    // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
-                    {
-                        let (a, b) = if source > *x {
-                            (*x, source)
-                        } else {
-                            (source, *x)
-                        };
-                        assert!(
-                            a != b,
-                            "1. source = {}, target = {}, source = {}, target = {}",
-                            a,
-                            b,
-                            source,
-                            target
-                        );
-                        heap.push(EdgeState {
-                            infrv_gain: OrderedFloat(delta),
-                            source: a,
-                            target: b,
-                            state: curr_state + 1,
-                        });
-                    }
-                }
-
-                // if there is v -- x but not
-                // u -- x then we copy the properties
-                // of v -- x into our new u*v -- x
-                for x in target_adj.iter() {
-                    if common_ids.contains(x) {
-                        continue;
-                    }
-
-                    let xn = pg::graph::NodeIndex::new(*x);
-                    let v_to_x_inner = og.find_edge(target_node, xn).unwrap();
-                    let v_to_x_info_inner = og.edge_weight(v_to_x_inner).unwrap();
-
-                    // let v_to_x_count = v_to_x_info_inner.count;
-                    // let v_to_x_eqlist = &v_to_x_info_inner.eqlist.to_vec();
-
-                    let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
-                    // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
-                    // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
-
-                    let new_state = -1_i32;
-
-                    og.add_edge(
-                        source_node,
-                        xn,
-                        EdgeInfoU {
-                            infrv_gain: delta,
-                            state: new_state
-                        },
-                    );
-
-                    // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
-                    {
-                        let (a, b) = if source > *x {
-                            (*x, source)
-                        } else {
-                            (source, *x)
-                        };
-                        assert!(
-                            a != b,
-                            "2. source = {}, target = {}, source = {}, target = {}",
-                            a,
-                            b,
-                            source,
-                            target
-                        );
-                        heap.push(EdgeState {
-                            infrv_gain: OrderedFloat(delta),
-                            source: a,
-                            target: b,
-                            state: new_state,
-                        });
-                    }
-                    og.remove_edge(v_to_x_inner);
-                }
-
-                // it's a triangle
-                for x in common_ids.iter() {
-                    let xn = pg::graph::NodeIndex::new(*x);
-
-                    // for the u - x edge
-                    let u_to_x_inner = og.find_edge(source_node, xn).unwrap();
-                    // for the v - x edge
-                    let v_to_x_inner = og.find_edge(target_node, xn).unwrap();
-
-                    let v_to_x_count: u32;
-                    let v_to_x_eq: Vec<usize>;
-                    {
-                        let v_to_x_info = og.edge_weight(v_to_x_inner).unwrap();
-                        // v_to_x_count = v_to_x_info.count;
-                        // v_to_x_eq = v_to_x_info.eqlist.clone();
-                    }
-
-                    let mut u_to_x_info = og.edge_weight_mut(u_to_x_inner).unwrap();
-
-                    // v_to_x_eq.sort();
-               //     let intersecting_eqlist = intersect(&v_to_x_eq, &u_to_x_info.eqlist);
-                    let curr_state = u_to_x_info.state;
-
-                    // let mut sum = 0_u32;
-                    // for i in intersecting_eqlist.iter() {
-                    //     sum += eq_class_count[*i as usize];
-                    // }
-                    // let tot_current_count = v_to_x_count + u_to_x_info.count;
-
-                    // TODO(@hiraksarkar) : once confident, we can remove this check
-                    // if sum > tot_current_count {
-                    //     println!("sum = {}, tot_current_count = {}", sum, tot_current_count);
-                    //     println!(
-                    //         "u-x : {:?}, v-x : {:?}, intersection : {:?}",
-                    //         u_to_x_info.eqlist, v_to_x_eq, intersecting_eqlist
-                    //     );
-                    //     std::process::exit(1);
-                    // }
-
-                    // FIXME(@hiraksarkar) : bootleg intersection --- replace with the proper function
-                    // once we have it
-                    //for c in &v_to_x_eq {
-                    //    if !intersecting_eqlist.contains(c) {
-                    //        u_to_x_info.eqlist.push(*c);
-                    //    }
-                    //}
-                    //u_to_x_info.eqlist.sort();
-                    // u_to_x_info.eqlist = union(&u_to_x_info.eqlist.to_vec(), &v_to_x_eq);
-
-                    // let final_count = tot_current_count - sum;
-
-                    let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
-                    // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
-                    // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
-
-                    u_to_x_info.infrv_gain = delta;
-                    // u_to_x_info.count = final_count;
-                    u_to_x_info.state += 1;
-
-                    // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
-                    {
-                        let (a, b) = if source > *x {
-                            (*x, source)
-                        } else {
-                            (source, *x)
-                        };
-                        assert!(
-                            a != b,
-                            "3. a = {}, b = {}, source = {}, target = {}",
-                            a,
-                            b,
-                            source,
-                            target
-                        );
-                        heap.push(EdgeState {
-                            infrv_gain: OrderedFloat(delta),
-                            source: a,
-                            target: b,
-                            state: curr_state + 1,
-                        });
-                    }
-                    og.remove_edge(v_to_x_inner);
-                }
-            //}
+        // println!("{},{},{}", source, target, infrv_gain);
+        if infrv_gain >= OrderedFloat(thr) {
+            continue;
         }
+        
+        assert!(
+            source < target,
+            "source = {}, target = {}",
+            source,
+            target
+        );
+        
+        let txp_source_key = &(format!("{}",source));
+        let txp_target_key = &(format!("{}",target));
+        
+        let pair_key = &(format!("{}_{}",source, target));
+        let pair_target_key = &(format!("{}_{}",target, source));
+        if !(edge_vec.contains_key(txp_source_key) && edge_vec.contains_key(txp_target_key)) {
+            continue;
+        }
+        
+        if !edge_vec.get(txp_source_key).unwrap().contains_key(pair_key) {
+            continue;
+        }
+        let u_v_ew = edge_vec.get(txp_source_key).unwrap().get(pair_key).unwrap();
+        
+        // only proceed if the state of this edge when
+        // placed on the heap is still the current state
+        if u_v_ew.state != state {
+            continue;
+        }
+
+        // the min posterior mean among u and v
+        let min_mean = gibbs_mat_mean[source].min(gibbs_mat_mean[target]);
+
+        let msg = format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\n",
+            source, target, infrv_array[source], infrv_array[target], infrv_gain, state
+        );
+        //println!("{}",msg);
+        cfile
+            .write_all(&msg.into_bytes())
+            .expect("could not write into collapse log");
+    
+        // one collapse guaranteed
+        *num_collapses += 1;
+        let _tmp = edge_vec.get_mut(txp_source_key).unwrap().remove(pair_key);
+        let _tmp = edge_vec.get_mut(txp_target_key).unwrap().remove(pair_target_key);
+
+        // it's candidate for collapse
+        // when we collapse we modify the
+        // following
+        // i. gibbs_mat
+        // ii. gibbs_mat_mean
+        // iii. Each neighbor of u and v
+        // iv. heap
+        // v. unionfind_array
+        let mut act_target = unionfind_struct.find(target as usize);
+        let par_source = unionfind_struct.find(source as usize); // parent of current source before union
+        let merge = unionfind_struct.union(source as usize, target);
+        if merge{
+            let act_source = unionfind_struct.find(source as usize) as usize;
+            if act_source==act_target{
+                act_target = par_source;
+            }
+            //order_group(source as usize, *t as usize, group_order);
+            //println!("{}",collapse_order[*t as usize].id);
+            collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
+            collapse_order[act_target as usize].clone());
+        }
+        let to_add = gibbs_mat.index_axis(Axis(0), target).to_owned();
+        let mut s = gibbs_mat.slice_mut(s![source, ..]);
+        s += &to_add;
+        infrv_array[source] = infrv_1d(s.view());
+        gibbs_mat_mean[source] = s.sum() / (s.len() as f64);
+
+        // update correlation for (u*v) to new and existing neighbors
+        let mut source_adj: Vec<usize> = edge_vec.get(&format!("{}", source)).unwrap()
+            .iter()
+            .map(|(key,value)| {
+                value.target
+            })
+            .collect();
+        let mut target_adj: Vec<usize> = edge_vec.get(&format!("{}", target)).unwrap()
+            .iter()
+            .map(|(key,value)| {
+                value.target
+            })
+            .collect();
+       
+        source_adj.sort_unstable();
+        target_adj.sort_unstable();
+
+        source_adj.dedup();
+        target_adj.dedup();
+        let common_ids = intersect(&source_adj, &target_adj);
+        // if *num_collapses  <= 10 as usize {
+        //     println!("{}_{}", source, target);
+        //     println!("{:?}", source_adj);
+        //     println!("{:?}", target_adj)
+        // }
+        // edge u-v is collapsed
+        // if u-x is already an edge, but v-x is *not*
+        // then we don't update count
+        for x in source_adj.iter() {
+            if common_ids.contains(x) {
+                continue;
+            }
+            // it is only neighbor of u
+            // so we need to update correlation
+                        
+            let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
+            
+            let in_key=&format!("{}_{}",source,x);
+            let mut u_to_x_inner = edge_vec.get_mut(txp_source_key).unwrap().get_mut(in_key).unwrap();
+            let curr_state = u_to_x_inner.state;
+            u_to_x_inner.infrv_gain = OrderedFloat(delta);
+            u_to_x_inner.state += 1;
+
+            let mut x_to_u_inner = edge_vec.get_mut(&format!("{}",x)).unwrap().get_mut(&format!("{}_{}",x,source)).unwrap();
+            x_to_u_inner.infrv_gain = OrderedFloat(delta);
+            x_to_u_inner.state += 1;
+
+            // update heap
+            if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
+            {
+                let (a, b) = if source > *x {
+                    (*x, source)
+                } else {
+                    (source, *x)
+                };
+                assert!(
+                    a != b,
+                    "1. source = {}, target = {}, source = {}, target = {}",
+                    a,
+                    b,
+                    source,
+                    target
+                );
+                heap.push(EdgeState {
+                    infrv_gain: OrderedFloat(delta),
+                    source: a,
+                    target: b,
+                    state: curr_state + 1,
+                    rep:0
+                });
+            }
+        }
+    
+        // if there is v -- x but not
+        // u -- x then we copy the properties
+        // of v -- x into our new u*v -- x
+        for x in target_adj.iter()  {
+            if common_ids.contains(x) || *x==source {
+                continue;
+            }
+            let in_key=&format!("{}_{}",target, x);
+            let mut v_to_x_inner = edge_vec.get_mut(txp_target_key).unwrap().get_mut(in_key).unwrap();
+            let curr_state = v_to_x_inner.state;
+
+
+            let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
+            // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
+            // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
+
+            let new_state = -1_i32;
+            
+            // update heap
+            let (a, b) = if source > *x {
+                (*x, source)
+            } else {
+                (source, *x)
+            };
+
+            if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
+            {
+                assert!(
+                    a != b,
+                    "2. source = {}, target = {}, source = {}, target = {}",
+                    a,
+                    b,
+                    source,
+                    target
+                );
+                heap.push(EdgeState {
+                    infrv_gain: OrderedFloat(delta),
+                    source: a,
+                    target: b,
+                    state: new_state,
+                    rep:0
+                });
+                let key = edge_vec.get_mut(&format!("{}",a)).unwrap()
+                            .insert(format!("{}_{}", a, b),
+                                EdgeState {
+                                    infrv_gain:OrderedFloat(delta),
+                                    source:a,
+                                    target:b,
+                                    state:-1,
+                                    rep:1
+                                });
+                let key = edge_vec.get_mut(&format!("{}",b)).unwrap()
+                            .insert(format!("{}_{}", b, a),
+                            EdgeState {
+                                infrv_gain:OrderedFloat(delta),
+                                source:b,
+                                target:a,
+                                state:-1,
+                                rep:-1
+                            });
+                        }
+            let t_key = &(format!("{}",x));
+            let p_key = &(format!("{}_{}",x,target));
+            let _tmp = edge_vec.get_mut(t_key).unwrap().remove(p_key);
+        }
+        
+        for x in common_ids.iter() {
+            let in_key=&format!("{}_{}",source,x);
+
+            let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
+            let mut u_to_x_inner = edge_vec.get_mut(txp_source_key).unwrap().get_mut(in_key).unwrap();
+            let curr_state = u_to_x_inner.state;
+            u_to_x_inner.infrv_gain = OrderedFloat(delta);
+            u_to_x_inner.state += 1;
+            
+            let mut x_to_u_inner = edge_vec.get_mut(&format!("{}",x)).unwrap().get_mut(&format!("{}_{}",x,source)).unwrap();
+            x_to_u_inner.infrv_gain = OrderedFloat(delta);
+            x_to_u_inner.state += 1;
+
+            // update heap
+            if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
+            {
+                let (a, b) = if source > *x {
+                    (*x, source)
+                } else {
+                    (source, *x)
+                };
+                assert!(
+                    a != b,
+                    "3. a = {}, b = {}, source = {}, target = {}",
+                    a,
+                    b,
+                    source,
+                    target
+                );
+                heap.push(EdgeState {
+                    infrv_gain: OrderedFloat(delta),
+                    source: a,
+                    target: b,
+                    state: curr_state + 1,
+                    rep: 0
+                });
+            }
+            let t_key = &(format!("{}",x));
+            let p_key = &(format!("{}_{}",x,target));
+            let _tmp = edge_vec.get_mut(t_key).unwrap().remove(p_key);
+        }
+        let _tmp = edge_vec.remove(txp_target_key);
     }
-    //println!("curr state {}", curr_state);
+    
 }
 
 pub fn parse_eq(filename: &std::path::Path) -> Result<EqClassExperiment, io::Error> {
