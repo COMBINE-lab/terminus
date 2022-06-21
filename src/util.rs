@@ -581,6 +581,7 @@ fn var_1d(a: ArrayView1<'_, f64>) -> f64 {
 // find min and max divide by mean
 fn infrv_1d(a: ArrayView1<'_, f64>) -> f64 {
     let mu = a.mean().unwrap() - 1.;
+    // let mu = a.mean().unwrap();
     let var = a.var_axis(Axis(0), 1.).into_scalar();
     //(var) / (mu + 0.1) + 0.01
     if (var - mu) >= 0. {
@@ -636,13 +637,13 @@ fn variance(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
 }
 */
 
-pub fn get_threhold(
+pub fn get_threshold(
     gibbs_mat: &Array2<f64>,
     infrv_quant: f64,
     seed: u64,
     file_list: &FileList,
 ) -> f64 {
-    println!("Calculating threhold");
+    println!("Calculating threshold");
     let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1));
     let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
     let gibbs_nz: Vec<_> = gibbs_mat_sum
@@ -851,6 +852,7 @@ fn order_group(source: usize, target:usize, group_order: &mut [String]) {
 pub fn eq_experiment_to_graph(
     exp: &EqClassExperiment,
     gibbs_mat: &mut Array2<f64>,
+    gibbs_mat_vec: &mut [Array2<f64>],
     eq_class_count: &[u32],
     tolerance: f64,
     thr: f64,
@@ -861,7 +863,10 @@ pub fn eq_experiment_to_graph(
     genevec: &[usize],
     original_id_to_old_id_map: &HashMap<usize, Vec<usize>>,
     group_order: &mut [String],
-    collapse_order: &mut [TreeNode]
+    collapse_order: &mut [TreeNode],
+    mean_inf: bool,
+    gold_col_file: &mut File,
+    allele_col_file: &mut File
 ) -> pg::Graph<usize, EdgeInfo, petgraph::Undirected> {
     let start = Instant::now();
 
@@ -875,18 +880,15 @@ pub fn eq_experiment_to_graph(
     let mut valid_transcripts = vec![false; exp.targets.len()];
     let mut part = Partition::simple(exp.targets.len());
     for (i, x) in exp.classes.iter().enumerate() {
-        if i % 10000 == 1 {
-            print!("{}\r", i);
-            io::stdout().flush().unwrap();
-        }
+        
         let ns = x.0;
         let ws = x.1;
-
+        
         if ns.len() < 2 {
             part.refine(&[ns[0] as usize]);
             continue;
         }
-
+        
         let _wsrounded: Vec<i32> = ws.iter().map(|&w| (w * 1000f32).round() as i32).collect();
         let mut pair_vec = Vec::with_capacity(ns.len());
         
@@ -899,7 +901,7 @@ pub fn eq_experiment_to_graph(
         
         let mut j = 0_usize;
         let mut tmp_vec = Vec::with_capacity(ns.len());
-
+        
         while j < pair_vec.len() - 1 {
             
             let mut diff = pair_vec[j + 1].1.to_f64().unwrap() - pair_vec[j].1.to_f64().unwrap();
@@ -939,11 +941,30 @@ pub fn eq_experiment_to_graph(
             //valid_transcripts[pair_vec[j].0 as usize] = true;
             //partition_sets.push(vec![pair_vec[j].0 as usize]);
         }
-
+        if i % 10000 == 1 {
+            print!("{}\r", i);
+            io::stdout().flush().unwrap();
+        }
     }
 
     // a blanket merge in asemode
-
+    let mut infrv_array = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
+    let mut infrv_array_vec:Vec<Array1::<f64>> = Vec::new();
+    if mean_inf {
+        for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
+            infrv_array_vec.push(infrv(gb, Axis(1)));
+            infrv_array += &infrv_array_vec[_i];
+            println!("inf {} {}", infrv_array_vec[_i][135347], infrv_array_vec[_i][198385]);
+            // println!("gb {}", gb.index_axis(Axis(0),135347));
+        }
+        infrv_array /= gibbs_mat_vec.len() as f64;
+        println!("mean inf {} {}", infrv_array[135347], infrv_array[198385]);
+    }
+    else {
+        infrv_array = infrv(gibbs_mat, Axis(1));
+    }
+    let mut msg:String;
+    
     if asemode {
         let mut allelic_collapses = 0;
         for (_original_id, txp_id_vec) in original_id_to_old_id_map.iter() {
@@ -951,16 +972,17 @@ pub fn eq_experiment_to_graph(
                 let mut tlist = txp_id_vec.clone();
                 tlist.sort_unstable();
                 let source = tlist[0];
+                let mut act_source:usize; 
+                let mut act_target:usize;
                 
                 for t in tlist.iter().skip(1) {
-                    let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
-                    let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
-                    s += &to_add;                    
-                    let mut act_target = unionfind_struct.find(*t as usize);
-                    let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
+                    
+                    act_target = unionfind_struct.find(*t as usize);
+                    let par_source = unionfind_struct.find(source as usize); // parent of current source before union
+                    act_source = source as usize;
                     let merge = unionfind_struct.union(source as usize, *t as usize);
                     if merge{
-                        let act_source = unionfind_struct.find(source as usize) as usize;
+                        act_source = unionfind_struct.find(source as usize) as usize;
                         
                         if act_source==act_target{
                             act_target = source as usize;
@@ -969,7 +991,38 @@ pub fn eq_experiment_to_graph(
                         //println!("{}",collapse_order[*t as usize].id);
                         collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
                         collapse_order[act_target as usize].clone());
+
+                        let msg = format!(
+                            "{}\t{}\t{}\t{}\n",
+                            act_source, act_target, infrv_array[act_source], infrv_array[act_target]
+                        );
+                        //println!("{}",msg);
+                        allele_col_file
+                            .write_all(&msg.into_bytes())
+                            .expect("could not write into allele collapse log");
+                        if mean_inf {
+                            infrv_array[act_source] = 0.0;
+                            for (_i, gb) in gibbs_mat_vec.iter_mut().enumerate() {
+                                // let infrv = infrv(&gb, Axis(1));
+                                // infrv_array += infrv
+                                let to_add = gb.index_axis(Axis(0), act_target as usize).to_owned();
+                                let mut s = gb.slice_mut(s![act_source as usize, ..]);
+                                s += &to_add;
+                                infrv_array_vec[_i][act_source] = infrv_1d(s.view());
+                                infrv_array[act_source] += infrv_array_vec[_i][act_source];
+                            }
+                            infrv_array[act_source] = infrv_array[act_source]/gibbs_mat_vec.len() as f64;
+                        }
+                        else {
+                            let mut infrv_array = infrv(&gibbs_mat, Axis(1));
+                            let to_add = gibbs_mat.index_axis(Axis(0), act_target as usize).to_owned();
+                            let mut s = gibbs_mat.slice_mut(s![act_source as usize, ..]);
+                            s += &to_add;
+                            infrv_array[act_source] += infrv_1d(s.view());
+                        }
                     }
+                   
+                  
                     allelic_collapses += 1;
                 }
             }
@@ -993,25 +1046,46 @@ pub fn eq_experiment_to_graph(
                
                 tlist.sort_unstable();
                 let source = tlist[0];
-                
-            'inner: for t in tlist.iter().skip(1) {
-                    let to_add = gibbs_mat.index_axis(Axis(0), *t as usize).to_owned();
-                    let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
-                    s += &to_add;
+                let mut act_source:usize = source;
+                'inner: for t in tlist.iter().skip(1) {
                     let mut act_target = unionfind_struct.find(*t as usize); // parent of current target node
-                    let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
+                    let par_source = unionfind_struct.find(source as usize); // parent of current source before union
                     let merge = unionfind_struct.union(source as usize, *t as usize);
                     
                     if merge{
                         t_golden_collapses +=1 ;
-                        let act_source = unionfind_struct.find(source as usize);
+                        act_source = unionfind_struct.find(source as usize);
                         if act_source == act_target{
                             act_target = par_source;
                         }
                         collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
                         collapse_order[act_target as usize].clone());
+                        let msg = format!(
+                            "{}\t{}\t{}\t{}\n",
+                            act_source, act_target, infrv_array[act_source], infrv_array[act_target]
+                        );
+                        gold_col_file
+                            .write_all(&msg.into_bytes())
+                            .expect("could not write into golden collapse log");
+                        infrv_array[act_source] = 0.0;
+                        if mean_inf {
+                            for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
+                                let to_add = gb.index_axis(Axis(0), act_target as usize).to_owned();
+                                let mut s = gb.slice_mut(s![act_source as usize, ..]);
+                                s += &to_add;
+                                infrv_array_vec[_i][act_source] = infrv_1d(s.view());
+                                infrv_array[act_source] += infrv_array_vec[_i][act_source];
+                            }
+                            infrv_array[act_source] = infrv_array[act_source]/gibbs_mat_vec.len() as f64;
+                        }
+                        else {
+                            let to_add = gibbs_mat.index_axis(Axis(0), act_target as usize).to_owned();
+                            let mut s = gibbs_mat.slice_mut(s![act_source as usize, ..]);
+                            s += &to_add;
+                            infrv_array[act_source] = infrv_1d(s.view());
+                        }
+                        
                     }
-                    
                     golden_collapses += 1;
                 }
             } else if p.len() > 10 {
@@ -1032,9 +1106,27 @@ pub fn eq_experiment_to_graph(
     }
 
     // compute the mean of the elemenrs
-    let gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
-    let gibbs_mat_spread = spread(&gibbs_mat, Axis(1));
+    let mut gibbs_mat_mean;
+    let mut gibbs_mat_spread;
+    // let mut gibbs_mat_mean = Array2::<f64>::zeros((1 as usize));
+    // let mut gibbs_mat_mean_vec = Vec::new();
+    // let mut gibbs_mat_spread = Array2::<f64>::zeros((1 as usize));
+    // let mut gibbs_mat_spread_vec = Vec::new();
 
+    if !mean_inf {
+        gibbs_mat_mean = gibbs_mat.mean_axis(Axis(1)).unwrap();
+        gibbs_mat_spread = spread(&gibbs_mat, Axis(1));
+    }
+    else {
+        gibbs_mat_mean = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
+        gibbs_mat_spread = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
+        for gb in gibbs_mat_vec.iter() {
+            gibbs_mat_mean += &gb.mean_axis(Axis(1)).unwrap();
+            gibbs_mat_spread += &spread(gb, Axis(1));
+        }
+        gibbs_mat_mean = gibbs_mat_mean/gibbs_mat_vec.len() as f64;
+        gibbs_mat_spread = gibbs_mat_spread/gibbs_mat_vec.len() as f64;
+    }
     // apply threashold
     let filtered_indices_spread: Vec<u32> = gibbs_mat_spread
         .indexed_iter()
@@ -1069,7 +1161,16 @@ pub fn eq_experiment_to_graph(
     }
 
     //let shape = gibbs_mat.shape() ;
-    let infrv_array = infrv(&gibbs_mat, Axis(1));
+    // let infrv_array = match(mean_inf) {
+    //     true => {
+    //         let mut v = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
+    //         for gb in gibbs_mat_vec.iter() {
+    //             v += &infrv(gb, Axis(1));
+    //         }
+    //         v/gibbs_mat_vec.len() as f64
+    //     },
+    //     false => infrv(&gibbs_mat, Axis(1)),
+    // }; 
     //let infrv_array = variance(&gibbs_mat, Axis(1));
 
     //let start_corr = Instant::now();
@@ -1144,7 +1245,18 @@ pub fn eq_experiment_to_graph(
                         None => {
                             // only add the edge if the correlation is sufficientl
                             // small
-                            let delta = get_collapse_score(&gibbs_mat, &infrv_array, na, *nb);
+                            let delta = match(mean_inf) {
+                                false => get_collapse_score(&gibbs_mat, &infrv_array, na, *nb),
+                                true => {
+                                    let mut col_score = 0.0;
+                                    for gb in gibbs_mat_vec.iter() {
+                                        col_score += get_collapse_score(&gb, &infrv_array, na, *nb);
+                                    }
+                                    col_score = col_score/gibbs_mat_vec.len() as f64;
+                                    col_score
+                                },
+                            };
+                                
                             // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, na, *nb);
                             //let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, na, *nb);
 

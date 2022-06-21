@@ -44,6 +44,8 @@ pub struct FileList {
     pub names_tsv_file: PathBuf,
     pub cmd_file: PathBuf,
     pub collapsed_log_file: PathBuf,
+    pub golden_collapses_log_file: PathBuf,
+    pub allele_collapses_log_file: PathBuf,
     pub group_file: PathBuf,
     pub collapse_order_file: PathBuf,
     pub delta_file: PathBuf,
@@ -95,6 +97,8 @@ impl FileList {
             cmd_file: dir.as_path().join("cmd_info.json"),
             cluster_file: dir.as_path().join("clusters.txt"),
             collapsed_log_file: dir.as_path().join("collapsed.log"),
+            golden_collapses_log_file: dir.as_path().join("golden_collapses.log"),
+            allele_collapses_log_file: dir.as_path().join("allele_collapses.log"),
             group_file: dir.as_path().join("groups.txt"),
             //group_order_file: dir.as_path().join("order.txt"),
             collapse_order_file: dir.as_path().join("collapse_order.json"),
@@ -131,7 +135,7 @@ pub struct EdgeInfo {
     pub eqlist: Vec<usize>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct EqList {
     pub offsets: Vec<usize>,
     pub labels: Vec<u32>,
@@ -191,7 +195,7 @@ impl EqList {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EqClassExperiment {
     pub targets: Vec<String>,
     pub ntarget: usize,
