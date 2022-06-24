@@ -28,7 +28,7 @@ use rand_pcg::Pcg64;
 use refinery::Partition;
 //use rand::thread_rng;
 //use rgsl::statistics::correlation;
-use crate::binary_tree::{TreeNode, sort_group_id};
+use crate::binary_tree::{TreeNode, sort_group_id, get_binary_rooted_newick_string};
 use crate::salmon_types::{EdgeInfo, EqClassExperiment, FileList, MetaInfo, TxpRecord};
 use std::iter::FromIterator;
 
@@ -138,6 +138,7 @@ pub fn group_writer2(
 
 pub fn collapse_order_writer(
     co_file: &mut File,
+    nwk_file: &mut File,
     groups: &HashMap<usize, Vec<usize>>,
     c_order: &[TreeNode]
 ) -> Result<bool, io::Error> {
@@ -151,6 +152,9 @@ pub fn collapse_order_writer(
     // co_updated.insert(2, c_order[10].clone());
     for (group_id, _) in groups {
         co_updated.insert(sort_group_id(&c_order[*group_id].id), c_order[*group_id].clone());
+        let mut nwk = get_binary_rooted_newick_string(&c_order[*group_id]);
+        nwk.push(';');
+        writeln!(nwk_file, "{}", nwk)?;
     }
     //println!("{:?}", co_updated);
     let err_write = format!("Could not create/write collapsed_order.json in {:?}", co_file);
@@ -954,11 +958,8 @@ pub fn eq_experiment_to_graph(
         for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
             infrv_array_vec.push(infrv(gb, Axis(1)));
             infrv_array += &infrv_array_vec[_i];
-            println!("inf {} {}", infrv_array_vec[_i][135347], infrv_array_vec[_i][198385]);
-            // println!("gb {}", gb.index_axis(Axis(0),135347));
         }
         infrv_array /= gibbs_mat_vec.len() as f64;
-        println!("mean inf {} {}", infrv_array[135347], infrv_array[198385]);
     }
     else {
         infrv_array = infrv(gibbs_mat, Axis(1));
@@ -1014,7 +1015,6 @@ pub fn eq_experiment_to_graph(
                             infrv_array[act_source] = infrv_array[act_source]/gibbs_mat_vec.len() as f64;
                         }
                         else {
-                            let mut infrv_array = infrv(&gibbs_mat, Axis(1));
                             let to_add = gibbs_mat.index_axis(Axis(0), act_target as usize).to_owned();
                             let mut s = gibbs_mat.slice_mut(s![act_source as usize, ..]);
                             s += &to_add;
@@ -1249,8 +1249,8 @@ pub fn eq_experiment_to_graph(
                                 false => get_collapse_score(&gibbs_mat, &infrv_array, na, *nb),
                                 true => {
                                     let mut col_score = 0.0;
-                                    for gb in gibbs_mat_vec.iter() {
-                                        col_score += get_collapse_score(&gb, &infrv_array, na, *nb);
+                                    for (_i,gb) in gibbs_mat_vec.iter().enumerate() {
+                                        col_score += get_collapse_score(&gb, &infrv_array_vec[_i], na, *nb);
                                     }
                                     col_score = col_score/gibbs_mat_vec.len() as f64;
                                     col_score
@@ -1413,6 +1413,7 @@ pub fn verify_graph(
 pub fn work_on_component(
     eq_class_count: &[u32],
     gibbs_mat: &mut Array2<f64>,
+    gibbs_mat_vec: &mut [Array2<f64>],
     gibbs_mat_mean: &mut Array1<f64>,
     unionfind_struct: &mut UnionFind<usize>,
     og: &mut pg::Graph<usize, EdgeInfo, petgraph::Undirected>,
@@ -1422,10 +1423,22 @@ pub fn work_on_component(
     infrv_quant: f64,
     cfile: &mut File,
     group_order: &mut [String],
-    collapse_order: &mut [TreeNode]
+    collapse_order: &mut [TreeNode],
+    mean_inf: bool
 ) {
     // make a set of edges to be visited
-    let mut infrv_array = infrv(&gibbs_mat, Axis(1));
+    let mut infrv_array = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
+    let mut infrv_array_vec:Vec<Array1::<f64>> = Vec::new();
+    if mean_inf {
+        for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
+            infrv_array_vec.push(infrv(gb, Axis(1)));
+            infrv_array += &infrv_array_vec[_i];
+        }
+        infrv_array /= gibbs_mat_vec.len() as f64;
+    }
+    else {
+        infrv_array = infrv(gibbs_mat, Axis(1));
+    }
     //let mut infrv_array = variance(&gibbs_mat, Axis(1));
     //let shape = gibbs_mat.shape().to_vec() ;
 
@@ -1467,7 +1480,7 @@ pub fn work_on_component(
             // if the edge count satisfies the criteria
             let source_node = pg::graph::NodeIndex::new(source);
             let target_node = pg::graph::NodeIndex::new(target);
-
+            
             assert!(
                 source_node.index() < target_node.index(),
                 "source = {}, source index = {}, target = {}, target index = {}",
@@ -1523,25 +1536,37 @@ pub fn work_on_component(
                 // iii. Each neighbor of u and v
                 // iv. heap
                 // v. unionfind_array
-                let mut act_target = unionfind_struct.find(target as usize);
-                let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
-                let merge = unionfind_struct.union(source as usize, target);
-                if merge{
-                    let act_source = unionfind_struct.find(source as usize) as usize;
-                    if act_source==act_target{
-                        act_target = par_source;
-                    }
-                    //order_group(source as usize, *t as usize, group_order);
-                    //println!("{}",collapse_order[*t as usize].id);
-                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
-                    collapse_order[act_target as usize].clone());
-                }
                 
-                let to_add = gibbs_mat.index_axis(Axis(0), target).to_owned();
-                let mut s = gibbs_mat.slice_mut(s![source, ..]);
-                s += &to_add;
-                infrv_array[source] = infrv_1d(s.view());
-                gibbs_mat_mean[source] = s.sum() / (s.len() as f64);
+                unionfind_struct.union(source as usize, target);
+                
+                //order_group(source as usize, *t as usize, group_order);
+                //println!("{}",collapse_order[*t as usize].id);
+                collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
+                collapse_order[target as usize].clone());
+            
+                if mean_inf {
+                    infrv_array[source] = 0.0;
+                    gibbs_mat_mean[source] = 0.0;
+                    for (_i, gb) in gibbs_mat_vec.iter_mut().enumerate() {
+                        let to_add = gb.index_axis(Axis(0), target as usize).to_owned();
+                        let mut s = gb.slice_mut(s![source as usize, ..]);
+                        s += &to_add;
+                        infrv_array_vec[_i][source] = infrv_1d(s.view());
+                        infrv_array[source] += infrv_array_vec[_i][source];
+                        gibbs_mat_mean[source] += s.sum() / (s.len() as f64);
+                    }
+                    infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
+                    gibbs_mat_mean[source] /= gibbs_mat_vec.len() as f64;
+                }
+                else {
+                    let to_add = gibbs_mat.index_axis(Axis(0), target as usize).to_owned();
+                    let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
+                    s += &to_add;
+                    infrv_array[source] += infrv_1d(s.view());
+                    gibbs_mat_mean[source] = s.sum() / (s.len() as f64);
+                }
+            
+
 
                 // update correlation for (u*v) to new and existing neighbors
                 let mut source_adj: Vec<usize> = og
@@ -1567,24 +1592,34 @@ pub fn work_on_component(
                     if common_ids.contains(x) {
                         continue;
                     }
-                    // it is only neighbor of u
-                    // so we need to update correlation
+                // it is only neighbor of u
+                // so we need to update correlation
 
                     let xn = pg::graph::NodeIndex::new(*x);
                     let u_to_x_inner = og.find_edge(source_node, xn).unwrap();
                     let mut u_to_x_info_inner = og.edge_weight_mut(u_to_x_inner).unwrap();
                     let curr_state = u_to_x_info_inner.state;
 
-                    let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
+                    let delta = match(mean_inf) {
+                        false => get_collapse_score(&gibbs_mat, &infrv_array, source, *x),
+                        true => {
+                            let mut col_score = 0.0;
+                            for (_i,gb) in gibbs_mat_vec.iter().enumerate() {
+                                col_score += get_collapse_score(&gb, &infrv_array_vec[_i], source, *x);
+                            }
+                            col_score = col_score/gibbs_mat_vec.len() as f64;
+                            col_score
+                        },
+                    };
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
                     u_to_x_info_inner.infrv_gain = delta;
                     u_to_x_info_inner.state += 1;
 
-                    // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
-                    {
+                // update heap
+                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x) {
+                    
                         let (a, b) = if source > *x {
                             (*x, source)
                         } else {
@@ -1606,7 +1641,7 @@ pub fn work_on_component(
                         });
                     }
                 }
-
+                
                 // if there is v -- x but not
                 // u -- x then we copy the properties
                 // of v -- x into our new u*v -- x
@@ -1622,7 +1657,17 @@ pub fn work_on_component(
                     let v_to_x_count = v_to_x_info_inner.count;
                     let v_to_x_eqlist = &v_to_x_info_inner.eqlist.to_vec();
 
-                    let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
+                    let delta = match(mean_inf) {
+                        false => get_collapse_score(&gibbs_mat, &infrv_array, source, *x),
+                        true => {
+                            let mut col_score = 0.0;
+                            for (_i,gb) in gibbs_mat_vec.iter().enumerate() {
+                                col_score += get_collapse_score(&gb, &infrv_array_vec[_i], source, *x);
+                            }
+                            col_score = col_score/gibbs_mat_vec.len() as f64;
+                            col_score
+                        },
+                    };
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
@@ -1639,9 +1684,8 @@ pub fn work_on_component(
                         },
                     );
 
-                    // update heap
-                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x)
-                    {
+                // update heap
+                    if delta < thr && endpoints_overdispersed(&infrv_array, infrv_quant, source, *x) {
                         let (a, b) = if source > *x {
                             (*x, source)
                         } else {
@@ -1664,8 +1708,8 @@ pub fn work_on_component(
                     }
                     og.remove_edge(v_to_x_inner);
                 }
-
-                // it's a triangle
+                
+            // it's a triangle
                 for x in common_ids.iter() {
                     let xn = pg::graph::NodeIndex::new(*x);
 
@@ -1693,7 +1737,7 @@ pub fn work_on_component(
                         sum += eq_class_count[*i as usize];
                     }
                     let tot_current_count = v_to_x_count + u_to_x_info.count;
-
+                    
                     // TODO(@hiraksarkar) : once confident, we can remove this check
                     if sum > tot_current_count {
                         println!("sum = {}, tot_current_count = {}", sum, tot_current_count);
@@ -1715,8 +1759,19 @@ pub fn work_on_component(
                     u_to_x_info.eqlist = union(&u_to_x_info.eqlist.to_vec(), &v_to_x_eq);
 
                     let final_count = tot_current_count - sum;
-
-                    let delta = get_collapse_score(&gibbs_mat, &infrv_array, source, *x);
+                    
+                    let delta = match(mean_inf) {
+                        false => get_collapse_score(&gibbs_mat, &infrv_array, source, *x),
+                        true => {
+                            let mut col_score = 0.0;
+                            for (_i,gb) in gibbs_mat_vec.iter().enumerate() {
+                                col_score += get_collapse_score(&gb, &infrv_array_vec[_i], source, *x);
+                            }
+                            col_score = col_score/gibbs_mat_vec.len() as f64;
+                            col_score
+                        },
+                    };
+                    
                     // let delta = get_variance_fold_change(&gibbs_mat, &infrv_array, source, *x);
                     // let delta = get_infrv_fold_change(&gibbs_mat, &infrv_array, source, *x);
 
@@ -1748,8 +1803,11 @@ pub fn work_on_component(
                         });
                     }
                     og.remove_edge(v_to_x_inner);
+                    
                 }
+                
             }
+            
         }
     }
     //println!("curr state {}", curr_state);

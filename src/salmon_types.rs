@@ -55,6 +55,7 @@ pub struct FileList {
     pub cluster_bp_splits_file: PathBuf,
     pub group_nwk_file: PathBuf,
     pub mgroup_nwk_file: PathBuf,
+    
 }
 
 // construct the files

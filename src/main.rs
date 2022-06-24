@@ -142,11 +142,10 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
 
     // Load the gibbs samples
     let mut x;
-    let mut gibbs_array=Array2::<f64>::zeros((1, 1));;
+    let mut gibbs_array=Array2::<f64>::zeros((1, 1));
     let mut gibbs_array_vec=Vec::new();
     let mut x_vec = Vec::new();
-    let mut gibbs_mat_mean;
-    let mut gibbs_mat_mean_vec = Vec::new();
+    let mut gibbs_mat_mean = Array1::<f64>::zeros(1);
     let mut eq_class_counts:Vec<u32> = Vec::new();
     let mut eq_class;
     let mut l = 0;
@@ -157,9 +156,12 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         for (_i,file_list) in file_list_vec.iter().enumerate() {
             x_vec.push(util::parse_json(&file_list.mi_file).unwrap());
             gibbs_array_vec.push(Array2::<f64>::zeros((x_vec[_i].num_valid_targets as usize, x_vec[_i].num_bootstraps as usize)));
+            if _i==0 {
+                gibbs_mat_mean = Array1::<f64>::zeros(gibbs_array_vec[0].shape()[0] as usize);
+                x=x_vec[0].clone();
+            }
             util::read_gibbs_array(&file_list.bootstrap_file, &x_vec[_i], &mut gibbs_array_vec[_i]);
-            gibbs_mat_mean_vec.push(gibbs_array_vec[_i].mean_axis(Axis(1)).unwrap());
-        
+            gibbs_mat_mean += &gibbs_array_vec[_i].mean_axis(Axis(1)).unwrap();
             println!("parsing eqfile {:?}", file_list.eq_file);
             eq_class_vec.push(util::parse_eq(&file_list.eq_file).unwrap());
             
@@ -167,7 +169,6 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             eq_class_counts.extend(vec![0_u32; eq_class_vec[_i].neq]);
             
             for (j, eq) in eq_class_vec[_i].classes.iter().enumerate() {
-                ;
                 eq_class_counts[l+j] = eq.2;
                 if j == eq_class_vec[_i].neq-1 {
                     l = l + j;
@@ -176,6 +177,8 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             l += 1;
             println!("l={}",l);
         }
+        x=x_vec[0].clone();
+        gibbs_mat_mean = gibbs_mat_mean/gibbs_array_vec.len() as f64;
         eq_class = eq_class_vec[0].clone();
         println!("{}, {}, {}, {}", eq_class.neq, eq_class.classes.offsets.len(), 
             eq_class.classes.labels.len(), eq_class.classes.weights.len());
@@ -348,69 +351,66 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         &mut allele_file
     );
     
-//     util::verify_graph(&eq_class_counts, &mut gr);
-//     // Go over the graph and keep collapsing
-//     // edges until we hit a point where there
-//     // are no more edges to that satisfies the criteria
-//     // and we collapse
+    util::verify_graph(&eq_class_counts, &mut gr);
+    // Go over the graph and keep collapsing
+    // edges until we hit a point where there
+    // are no more edges to that satisfies the criteria
+    // and we collapse
 
-//     // connected coponents
-//     let num_connected_components = connected_components(&gr);
-//     println!("#Connected components {:?}", num_connected_components);
+    // connected coponents
+    let num_connected_components = connected_components(&gr);
+    println!("#Connected components {:?}", num_connected_components);
 
-//     let mut num_collapses = 0_usize;
+    let mut num_collapses = 0_usize;
 
-//     //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
-//     let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
-//         .expect("could not create collapse.log");
+    //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
+    let mut cfile = File::create(file_list_out.collapsed_log_file.clone())
+        .expect("could not create collapse.log");
 
-//     let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
-//         .node_indices()
-//         .map(|x| petgraph::graph::NodeIndex::new(x.index()))
-//         .collect();
-//     util::work_on_component(
-//         &eq_class_counts,
-//         &mut gibbs_array,
-//         &mut gibbs_mat_mean,
-//         &mut unionfind_struct,
-//         &mut gr,
-//         &gcomp,
-//         &mut num_collapses,
-//         thr,
-//         p,
-//         &mut cfile,
-//         &mut group_order,
-//         &mut collapse_order
-//     );
+    let gcomp: Vec<petgraph::prelude::NodeIndex> = gr
+        .node_indices()
+        .map(|x| petgraph::graph::NodeIndex::new(x.index()))
+        .collect();
+    util::work_on_component(
+        &eq_class_counts,
+        &mut gibbs_array,
+        &mut gibbs_array_vec,
+        &mut gibbs_mat_mean,
+        &mut unionfind_struct,
+        &mut gr,
+        &gcomp,
+        &mut num_collapses,
+        thr,
+        p,
+        &mut cfile,
+        &mut group_order,
+        &mut collapse_order,
+        mean_inf
+    );
 
-//     // //write down the groups
-//     let mut groups = HashMap::new();
-//     //let mut grouped_set = HashSet::new();
-//     for i in 0..(x.num_valid_targets as usize) {
-//         let root = unionfind_struct.find(i);
-//         if root != i {
-//             groups.entry(root).or_insert_with(Vec::new).push(i);
-//         }
-//     }
+    // //write down the groups
+    let mut groups = HashMap::new();
+    //let mut grouped_set = HashSet::new();
+    println!("{}", x.num_valid_targets);
+    for i in 0..(x.num_valid_targets as usize) {
+        let root = unionfind_struct.find(i);
+        if root != i {
+            groups.entry(root).or_insert_with(Vec::new).push(i);
+        }
+    }
 
-//     // println!("Number of collapsed transcripts from conn components with 2 {}", num_collapses_2.to_formatted_string(&Locale::en));
-//     println!(
-//         "Number of collapses {}",
-//         num_collapses.to_formatted_string(&Locale::en)
-//     );
-//     //let _res = util::write_modified_quants(&groups, &grouped_set, &file_list_out, &gibbs_array, &x, &rec, &collapsed_dim);
+    // println!("Number of collapsed transcripts from conn components with 2 {}", num_collapses_2.to_formatted_string(&Locale::en));
+    println!(
+        "Number of collapses {}",
+        num_collapses.to_formatted_string(&Locale::en)
+    );
     
-//     let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
-//     let mut co_file = File::create(file_list_out.collapse_order_file).expect("could not create collapse order file");
-//     // let mut co = File::create("co_file.txt").expect("could not create collapse order file");
-//     let _write = util::group_writer(&mut gfile, &groups);
-//    // let _write = util::order_group_writer(&mut gofile, &group_order, &groups);
-//     let _write = util::collapse_order_writer(&mut co_file, &groups, &collapse_order);
-    //let _write = util::co_id_writer(&mut co, &groups, &collapse_order);
     
-    // let file = File::open(ff);
-    // let reader = BufReader::new(file.unwrap());
-    //let dd: HashMap<usize,binary_tree::TreeNode> = serde_pickle::from_reader(reader).unwrap();
+    let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
+    let mut co_file = File::create(file_list_out.collapse_order_file).expect("could not create collapse order file");
+    let mut nwk_file = File::create(file_list_out.group_nwk_file).expect("could not create group order file");
+    let _write = util::group_writer(&mut gfile, &groups);
+    let _write = util::collapse_order_writer(&mut co_file, &mut nwk_file, &groups, &collapse_order);
         
     Ok(true)
 }
