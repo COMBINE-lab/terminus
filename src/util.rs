@@ -877,7 +877,7 @@ pub fn eq_experiment_to_graph(
     let txpmode:bool = genevec.len() > 0;
     let asemode:bool = original_id_to_old_id_map.len() > 0;
 
-    println!("txp mode and ase mode {},{}", asemode, txpmode);
+    println!("txp mode and ase mode {},{}", txpmode, asemode);
     println!("Creating partition refinery");
     let mut part_cache = HashSet::new();
     let part_start = Instant::now();
@@ -952,7 +952,10 @@ pub fn eq_experiment_to_graph(
     }
 
     // a blanket merge in asemode
-    let mut infrv_array = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
+    let mut infrv_array = match mean_inf {
+        true => Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize),
+        false => Array1::<f64>::zeros(gibbs_mat.shape()[0] as usize),
+    };
     let mut infrv_array_vec:Vec<Array1::<f64>> = Vec::new();
     if mean_inf {
         for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
@@ -1427,7 +1430,10 @@ pub fn work_on_component(
     mean_inf: bool
 ) {
     // make a set of edges to be visited
-    let mut infrv_array = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
+    let mut infrv_array = match mean_inf {
+        true => Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize),
+        false => Array1::<f64>::zeros(gibbs_mat.shape()[0] as usize),
+    };
     let mut infrv_array_vec:Vec<Array1::<f64>> = Vec::new();
     if mean_inf {
         for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
