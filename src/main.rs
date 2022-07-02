@@ -25,7 +25,7 @@ use std::path::PathBuf;
 
 
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Value,json};
 
 
 // Name of the program, to be used in diagnostic messages.
@@ -59,7 +59,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // let mut gibbs_array_vec = Vec::<Array2<f64>>::with_capacity(dir_paths.len());
     // let mut meta_info_array = Vec::<salmon_types::MetaInfo>::with_capacity(dir_paths.len());
     // let mut num_global_targrts = 0u32 ;
-
+    
     let seed = sub_m
         .value_of("seed")
         .unwrap()
@@ -87,7 +87,8 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .value_of("mean")
         .unwrap()
         .parse::<bool>()
-        .expect("could not parse thr_bool");
+        .expect("could not parse mean");
+    
     
     let mut dir_paths: Vec<String> = Vec::new();
     if mean_inf {
@@ -113,7 +114,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     println!("seed : {}", seed);
     println!("min-spread : {}", min_spread);
     println!("tolerance : {}", tolerance);
-    println!("dir : {}", dname);
+    println!("dir : {}", dname.clone());
     let compo: Vec<&str> = dname.rsplit('/').collect();
     //println!("{:?}",compo);
     let experiment_name = compo[0];
@@ -139,7 +140,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // create
     create_dir_all(prefix_path.clone())?;
 
-
+    
     // Load the gibbs samples
     let mut x;
     let mut gibbs_array=Array2::<f64>::zeros((1, 1));
@@ -232,7 +233,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     if txpmode {
         println!("Txps within a gene would be collapsed using : {:?}", transcript2gene.to_str().unwrap());
     }
-
+    
     // take the transcript to gene mapping
     // this will also create a map from transcript id
     // to gene id
@@ -296,6 +297,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     };
 
     println!("the {}% of infRV was : {}", inf_perc * 100., p);
+    
     let mut thr = match(thr_bool) {
         true => {
             let mut val;
@@ -316,6 +318,8 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     
     println!("threshold: {}", thr);
     println!("{}", eq_class.ntarget);
+
+    
     //let dpath = Path::new(file_list_out.delta_file.clone());
     let mut dfile =
         File::create(file_list_out.delta_file.clone()).expect("could not create collapse.log");
@@ -360,7 +364,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // connected coponents
     let num_connected_components = connected_components(&gr);
     println!("#Connected components {:?}", num_connected_components);
-
+    
     let mut num_collapses = 0_usize;
 
     //let cpath = Path::new(file_list_out.collapsed_log_file.clone());
@@ -391,7 +395,6 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     // //write down the groups
     let mut groups = HashMap::new();
     //let mut grouped_set = HashSet::new();
-    println!("{}", x.num_valid_targets);
     for i in 0..(x.num_valid_targets as usize) {
         let root = unionfind_struct.find(i);
         if root != i {
@@ -405,7 +408,25 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         num_collapses.to_formatted_string(&Locale::en)
     );
     
+    let params = json!({
+        "seed":seed,
+        "tolerance":tolerance,
+        "mean_inf":mean_inf,
+        "thr_bool":thr_bool,
+        "inp_dir":dname.clone(),
+        "out_dir":prefix_path.clone(),
+        "allele_mode":asemode,
+        "txp_mode":txpmode,
+        "inf_perc":25.0 as f64,
+        "p":p,
+        "thr":thr,
+        "ntxps":eq_class.ntarget,
+        "connected_componets":num_connected_components,
+        "ncollapses":num_collapses
+    });
     
+    let mut param_log_file = File::create(file_list_out.param_log_file).expect("could not create group order file");
+    let _write= serde_json::to_writer(param_log_file, &params)?;
     let mut gfile = File::create(file_list_out.group_file).expect("could not create groups.txt");
     let mut co_file = File::create(file_list_out.collapse_order_file).expect("could not create collapse order file");
     let mut nwk_file = File::create(file_list_out.group_nwk_file).expect("could not create group order file");
