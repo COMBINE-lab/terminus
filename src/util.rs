@@ -995,33 +995,34 @@ pub fn eq_experiment_to_graph(
                         //println!("{}",collapse_order[*t as usize].id);
                         collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
                         collapse_order[act_target as usize].clone());
+                        let target=*t;
 
                         let msg = format!(
                             "{}\t{}\t{}\t{}\n",
-                            act_source, act_target, infrv_array[act_source], infrv_array[act_target]
+                            source, target, infrv_array[source], infrv_array[target]
                         );
                         //println!("{}",msg);
                         allele_col_file
                             .write_all(&msg.into_bytes())
                             .expect("could not write into allele collapse log");
                         if mean_inf {
-                            infrv_array[act_source] = 0.0;
+                            infrv_array[source] = 0.0;
                             for (_i, gb) in gibbs_mat_vec.iter_mut().enumerate() {
                                 // let infrv = infrv(&gb, Axis(1));
                                 // infrv_array += infrv
-                                let to_add = gb.index_axis(Axis(0), act_target as usize).to_owned();
-                                let mut s = gb.slice_mut(s![act_source as usize, ..]);
+                                let to_add = gb.index_axis(Axis(0), target as usize).to_owned();
+                                let mut s = gb.slice_mut(s![source as usize, ..]);
                                 s += &to_add;
-                                infrv_array_vec[_i][act_source] = infrv_1d(s.view());
-                                infrv_array[act_source] += infrv_array_vec[_i][act_source];
+                                infrv_array_vec[_i][source] = infrv_1d(s.view());
+                                infrv_array[source] += infrv_array_vec[_i][source];
                             }
-                            infrv_array[act_source] = infrv_array[act_source]/gibbs_mat_vec.len() as f64;
+                            infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
                         }
                         else {
-                            let to_add = gibbs_mat.index_axis(Axis(0), act_target as usize).to_owned();
-                            let mut s = gibbs_mat.slice_mut(s![act_source as usize, ..]);
+                            let to_add = gibbs_mat.index_axis(Axis(0), target as usize).to_owned();
+                            let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                             s += &to_add;
-                            infrv_array[act_source] += infrv_1d(s.view());
+                            infrv_array[source] += infrv_1d(s.view());
                         }
                     }
                    
@@ -1051,6 +1052,7 @@ pub fn eq_experiment_to_graph(
                 let source = tlist[0];
                 let mut act_source:usize = source;
                 'inner: for t in tlist.iter().skip(1) {
+                    let target=*t;
                     let mut act_target = unionfind_struct.find(*t as usize); // parent of current target node
                     let par_source = unionfind_struct.find(source as usize); // parent of current source before union
                     let merge = unionfind_struct.union(source as usize, *t as usize);
@@ -1065,27 +1067,27 @@ pub fn eq_experiment_to_graph(
                         collapse_order[act_target as usize].clone());
                         let msg = format!(
                             "{}\t{}\t{}\t{}\n",
-                            act_source, act_target, infrv_array[act_source], infrv_array[act_target]
+                            source, target, infrv_array[source], infrv_array[target]
                         );
                         gold_col_file
                             .write_all(&msg.into_bytes())
                             .expect("could not write into golden collapse log");
-                        infrv_array[act_source] = 0.0;
+                        infrv_array[source] = 0.0;
                         if mean_inf {
                             for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
-                                let to_add = gb.index_axis(Axis(0), act_target as usize).to_owned();
-                                let mut s = gb.slice_mut(s![act_source as usize, ..]);
+                                let to_add = gb.index_axis(Axis(0), target as usize).to_owned();
+                                let mut s = gb.slice_mut(s![source as usize, ..]);
                                 s += &to_add;
-                                infrv_array_vec[_i][act_source] = infrv_1d(s.view());
-                                infrv_array[act_source] += infrv_array_vec[_i][act_source];
+                                infrv_array_vec[_i][source] = infrv_1d(s.view());
+                                infrv_array[source] += infrv_array_vec[_i][source];
                             }
-                            infrv_array[act_source] = infrv_array[act_source]/gibbs_mat_vec.len() as f64;
+                            infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
                         }
                         else {
-                            let to_add = gibbs_mat.index_axis(Axis(0), act_target as usize).to_owned();
-                            let mut s = gibbs_mat.slice_mut(s![act_source as usize, ..]);
+                            let to_add = gibbs_mat.index_axis(Axis(0), target as usize).to_owned();
+                            let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                             s += &to_add;
-                            infrv_array[act_source] = infrv_1d(s.view());
+                            infrv_array[source] = infrv_1d(s.view());
                         }
                         
                     }
@@ -1543,12 +1545,19 @@ pub fn work_on_component(
                 // iv. heap
                 // v. unionfind_array
                 
-                unionfind_struct.union(source as usize, target);
-                
-                //order_group(source as usize, *t as usize, group_order);
-                //println!("{}",collapse_order[*t as usize].id);
-                collapse_order[source as usize] = TreeNode::create_group(collapse_order[source as usize].clone(),
-                collapse_order[target as usize].clone());
+                let mut act_target = unionfind_struct.find(target as usize);
+                let mut par_source = unionfind_struct.find(source as usize); // parent of current source before union
+                let merge = unionfind_struct.union(source as usize, target);
+                if merge{
+                    let act_source = unionfind_struct.find(source as usize) as usize;
+                    if act_source==act_target{
+                        act_target = par_source;
+                    }
+                    //order_group(source as usize, *t as usize, group_order);
+                    //println!("{}",collapse_order[*t as usize].id);
+                    collapse_order[act_source as usize] = TreeNode::create_group(collapse_order[act_source as usize].clone(),
+                    collapse_order[act_target as usize].clone());
+                }
             
                 if mean_inf {
                     infrv_array[source] = 0.0;
@@ -1568,7 +1577,7 @@ pub fn work_on_component(
                     let to_add = gibbs_mat.index_axis(Axis(0), target as usize).to_owned();
                     let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                     s += &to_add;
-                    infrv_array[source] += infrv_1d(s.view());
+                    infrv_array[source] = infrv_1d(s.view());
                     gibbs_mat_mean[source] = s.sum() / (s.len() as f64);
                 }
             
