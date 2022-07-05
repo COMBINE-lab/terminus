@@ -960,9 +960,10 @@ pub fn eq_experiment_to_graph(
     if mean_inf {
         for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
             infrv_array_vec.push(infrv(gb, Axis(1)));
-            infrv_array += &infrv_array_vec[_i];
+            for _j in 0..infrv_array.shape()[0] {
+                infrv_array[_j] = infrv_array[_j].max(infrv_array_vec[_i][_j]);
+            }
         }
-        infrv_array /= gibbs_mat_vec.len() as f64;
     }
     else {
         infrv_array = infrv(gibbs_mat, Axis(1));
@@ -1014,15 +1015,15 @@ pub fn eq_experiment_to_graph(
                                 let mut s = gb.slice_mut(s![source as usize, ..]);
                                 s += &to_add;
                                 infrv_array_vec[_i][source] = infrv_1d(s.view());
-                                infrv_array[source] += infrv_array_vec[_i][source];
+                                infrv_array[source] = infrv_array[source].max(infrv_array_vec[_i][source]);
                             }
-                            infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
+                            // infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
                         }
                         else {
                             let to_add = gibbs_mat.index_axis(Axis(0), target as usize).to_owned();
                             let mut s = gibbs_mat.slice_mut(s![source as usize, ..]);
                             s += &to_add;
-                            infrv_array[source] += infrv_1d(s.view());
+                            infrv_array[source] = infrv_1d(s.view());
                         }
                     }
                    
@@ -1079,9 +1080,9 @@ pub fn eq_experiment_to_graph(
                                 let mut s = gb.slice_mut(s![source as usize, ..]);
                                 s += &to_add;
                                 infrv_array_vec[_i][source] = infrv_1d(s.view());
-                                infrv_array[source] += infrv_array_vec[_i][source];
+                                infrv_array[source] = infrv_array[source].max(infrv_array_vec[_i][source]);
                             }
-                            infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
+                            // infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
                         }
                         else {
                             let to_add = gibbs_mat.index_axis(Axis(0), target as usize).to_owned();
@@ -1126,11 +1127,16 @@ pub fn eq_experiment_to_graph(
         gibbs_mat_mean = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
         gibbs_mat_spread = Array1::<f64>::zeros(gibbs_mat_vec[0].shape()[0] as usize);
         for gb in gibbs_mat_vec.iter() {
-            gibbs_mat_mean += &gb.mean_axis(Axis(1)).unwrap();
-            gibbs_mat_spread += &spread(gb, Axis(1));
+            let mean = gb.mean_axis(Axis(1)).unwrap();
+            let spread = spread(gb, Axis(1));
+            for j in 0..infrv_array.shape()[0] {
+                gibbs_mat_mean[j] = gibbs_mat_mean[j].max(mean[j]);
+                gibbs_mat_spread[j] = gibbs_mat_spread[j].max(spread[j]);
+            }
+            
         }
-        gibbs_mat_mean = gibbs_mat_mean/gibbs_mat_vec.len() as f64;
-        gibbs_mat_spread = gibbs_mat_spread/gibbs_mat_vec.len() as f64;
+        // gibbs_mat_mean = gibbs_mat_mean/gibbs_mat_vec.len() as f64;
+        // gibbs_mat_spread = gibbs_mat_spread/gibbs_mat_vec.len() as f64;
     }
     // apply threashold
     let filtered_indices_spread: Vec<u32> = gibbs_mat_spread
@@ -1202,7 +1208,7 @@ pub fn eq_experiment_to_graph(
                 }
             })
             .collect();
-
+        
         for a in 0..retained.len() {
             let mut na = retained[a] as usize;
             let na_root = unionfind_struct.find(na);
@@ -1230,7 +1236,7 @@ pub fn eq_experiment_to_graph(
                 if na == nbd {
                     continue;
                 }
-
+              
                 if endpoints_overdispersed(&infrv_array, infrv_quant, na, nbd)
                     && (filtered_indices_vec[na] || filtered_indices_vec[nbd])
                 //&&
@@ -1440,9 +1446,11 @@ pub fn work_on_component(
     if mean_inf {
         for (_i,gb) in gibbs_mat_vec.iter_mut().enumerate() {
             infrv_array_vec.push(infrv(gb, Axis(1)));
-            infrv_array += &infrv_array_vec[_i];
+            for _j in 0..infrv_array.shape()[0] {
+                infrv_array[_j] = infrv_array[_j].max(infrv_array_vec[_i][_j]);
+            }
         }
-        infrv_array /= gibbs_mat_vec.len() as f64;
+        // infrv_array /= gibbs_mat_vec.len() as f64;
     }
     else {
         infrv_array = infrv(gibbs_mat, Axis(1));
@@ -1567,11 +1575,11 @@ pub fn work_on_component(
                         let mut s = gb.slice_mut(s![source as usize, ..]);
                         s += &to_add;
                         infrv_array_vec[_i][source] = infrv_1d(s.view());
-                        infrv_array[source] += infrv_array_vec[_i][source];
-                        gibbs_mat_mean[source] += s.sum() / (s.len() as f64);
+                        infrv_array[source] = infrv_array[source].max(infrv_array_vec[_i][source]);
+                        gibbs_mat_mean[source] = gibbs_mat_mean[source].max(s.sum() / (s.len() as f64));
                     }
-                    infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
-                    gibbs_mat_mean[source] /= gibbs_mat_vec.len() as f64;
+                    // infrv_array[source] = infrv_array[source]/gibbs_mat_vec.len() as f64;
+                    // gibbs_mat_mean[source] /= gibbs_mat_vec.len() as f64;
                 }
                 else {
                     let to_add = gibbs_mat.index_axis(Axis(0), target as usize).to_owned();

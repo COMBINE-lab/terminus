@@ -132,14 +132,15 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
             file_list_vec.push(salmon_types::FileList::new(dir.to_string()));
         }
     } 
-    let file_list_out = salmon_types::FileList::new(prefix_path.clone());
+    
+    
     // create output directory
     
-    println!("output folder: {}", prefix_path);
+    println!("output folder: {}", prefix_path.clone());
     println!("------------------------------");
     // create
     create_dir_all(prefix_path.clone())?;
-
+    let file_list_out = salmon_types::FileList::new(prefix_path.clone());
     
     // Load the gibbs samples
     let mut x;
@@ -288,12 +289,18 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     let p = match(mean_inf) {
         false => util::get_infrv_percentile(&gibbs_array, inf_perc),
         true => {
-            let mut cum_infrv_perc = 0.0;
-            for gb in gibbs_array_vec.iter(){
-                cum_infrv_perc += util::get_infrv_percentile(gb, inf_perc);
+            let mut cum_infrv_perc:f64 = 0.0;
+            for (_i,gb) in gibbs_array_vec.iter().enumerate() {
+                let perc = util::get_infrv_percentile(gb, inf_perc);
+                if _i == 0 {
+                    cum_infrv_perc = perc;
+                }
+                else {
+                    cum_infrv_perc = cum_infrv_perc.min(perc);
+                }
             }
-            cum_infrv_perc/(gibbs_array_vec.len() as f64)
-        }
+            cum_infrv_perc
+        },
     };
 
     println!("the {}% of infRV was : {}", inf_perc * 100., p);
