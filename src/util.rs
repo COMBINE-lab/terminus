@@ -616,7 +616,10 @@ fn spread(a: &Array2<f64>, axis: Axis) -> Array1<f64> {
 }
 
 pub fn get_infrv_percentile(gibbs_mat: &Array2<f64>, p: f64) -> f64 {
-    assert!(0. < p);
+    // assert!(0. < p);
+    if p==0.0 {
+        return 0.0;
+    }
     assert!(p < 1.);
     let gibbs_mat_sum = gibbs_mat.sum_axis(Axis(1));
     let gibbs_nz: Vec<_> = gibbs_mat_sum

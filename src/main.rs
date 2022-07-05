@@ -88,6 +88,12 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .unwrap()
         .parse::<bool>()
         .expect("could not parse mean");
+        
+    let inf_perc = sub_m
+        .value_of("inf_perc")
+        .unwrap()
+        .parse::<f64>()
+        .expect("could not parse inf percentile");
     
     
     let mut dir_paths: Vec<String> = Vec::new();
@@ -285,7 +291,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
     }
         
 
-    let inf_perc = 0.25f64;
+    // let inf_perc = 0.25f64;
     let p = match(mean_inf) {
         false => util::get_infrv_percentile(&gibbs_array, inf_perc),
         true => {
@@ -424,7 +430,7 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         "out_dir":prefix_path.clone(),
         "allele_mode":asemode,
         "txp_mode":txpmode,
-        "inf_perc":25.0 as f64,
+        "inf_perc":inf_perc,
         "p":p,
         "thr":thr,
         "ntxps":eq_class.ntarget,
@@ -837,6 +843,14 @@ fn main() -> io::Result<()> {
                     .takes_value(true)
                     .default_value("true")
                     .help("mean infrv for tree construction")
+            )
+            .arg(
+                Arg::with_name("inf_perc")
+                .long("inf_perc")
+                .short("i")
+                .takes_value(true)
+                .default_value("0.25")
+                .help("inferential variance percentile threshold that determines whether a transcript will be considered for grouping")
             )
         )
         .subcommand(
