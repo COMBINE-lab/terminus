@@ -584,8 +584,11 @@ fn var_1d(a: ArrayView1<'_, f64>) -> f64 {
 
 // find min and max divide by mean
 fn infrv_1d(a: ArrayView1<'_, f64>) -> f64 {
-    let mu = a.mean().unwrap() - 1.;
-    // let mu = a.mean().unwrap();
+    let sub_m=false;
+    let mu = match sub_m {
+        true => a.mean().unwrap() - 1.0,
+        false => a.mean().unwrap(),
+    };
     let var = a.var_axis(Axis(0), 1.).into_scalar();
     //(var) / (mu + 0.1) + 0.01
     if (var - mu) >= 0. {

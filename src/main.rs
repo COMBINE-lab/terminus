@@ -95,6 +95,12 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         .parse::<f64>()
         .expect("could not parse inf percentile");
     
+    let sub_mean = sub_m
+        .value_of("m_sub")
+        .unwrap()
+        .parse::<bool>()
+        .expect("could not parse bool");
+    
     
     let mut dir_paths: Vec<String> = Vec::new();
     if mean_inf {
@@ -435,7 +441,8 @@ fn do_group(sub_m: &ArgMatches) -> Result<bool, io::Error> {
         "thr":thr,
         "ntxps":eq_class.ntarget,
         "connected_componets":num_connected_components,
-        "ncollapses":num_collapses
+        "ncollapses":num_collapses,
+	"m_sub":sub_mean
     });
     
     let mut param_log_file = File::create(file_list_out.param_log_file).expect("could not create group order file");
@@ -851,6 +858,13 @@ fn main() -> io::Result<()> {
                 .takes_value(true)
                 .default_value("0.25")
                 .help("inferential variance percentile threshold that determines whether a transcript will be considered for grouping")
+            )
+            .arg(
+                Arg::with_name("m_sub")
+                .long("m_sub")
+                .takes_value(true)
+                .default_value("false")
+                .help("Subtracting 1 from mean of inferential variance")
             )
         )
         .subcommand(
